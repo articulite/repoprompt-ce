@@ -6,6 +6,12 @@
 //  Uses DispatchSourceRead for event-driven I/O (no polling).
 //
 
+#if os(Linux)
+import Glibc
+typealias Darwin = Glibc
+#else
+import Darwin
+#endif
 import Foundation
 import Logging
 import MCP
@@ -332,21 +338,19 @@ public actor UnixSocketMCPTransport: Transport {
         addr.sun_family = sa_family_t(AF_UNIX)
 
         let path = socketURL.path
-        guard path.utf8.count < MemoryLayout.size(ofValue: addr.sun_path) else {
+        let pathBytes = path.utf8CString
+        guard pathBytes.count <= MemoryLayout.size(ofValue: addr.sun_path) else {
             Darwin.close(fd)
             throw MCPError.internalError("Socket path too long: \(path)")
         }
 
-        // Copy path to sun_path without raw-pointer rebinding/casts.
-        var sunPath = addr.sun_path
-        let sunPathSize = MemoryLayout.size(ofValue: sunPath)
-        path.withCString { cstr in
-            withUnsafeMutablePointer(to: &sunPath.0) { dst in
-                // Safer than strcpy; always NUL-terminates.
-                _ = Darwin.strlcpy(dst, cstr, sunPathSize)
+        withUnsafeMutablePointer(to: &addr.sun_path) { ptr in
+            ptr.withMemoryRebound(to: CChar.self, capacity: pathBytes.count) { dest in
+                for (i, byte) in pathBytes.enumerated() {
+                    dest[i] = byte
+                }
             }
         }
-        addr.sun_path = sunPath
 
         // Connect
         let addrLen = socklen_t(MemoryLayout<sockaddr_un>.size)
@@ -363,8 +367,10 @@ public actor UnixSocketMCPTransport: Transport {
         }
 
         // Disable SIGPIPE on this socket
+        #if !os(Linux)
         var noSigPipe: Int32 = 1
         setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
+        #endif
 
         // Set non-blocking mode for non-blocking writes
         let flags = fcntl(fd, F_GETFL)
@@ -423,8 +429,10 @@ public actor UnixSocketMCPTransport: Transport {
             try Self.ensureNonBlocking(fd: socketFD)
 
             // Disable SIGPIPE on this socket.
+            #if !os(Linux)
             var noSigPipe: Int32 = 1
             setsockopt(socketFD, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
+            #endif
 
             #if DEBUG
                 if failNextExistingFDConnectBeforeReaderStart {

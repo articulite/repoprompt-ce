@@ -1,5 +1,9 @@
+#if os(macOS)
 import Darwin
 import Darwin.POSIX.fcntl
+#elseif os(Linux)
+import Glibc
+#endif
 
 public enum POSIXDescriptorConfigurationError: Error, Equatable, Sendable {
     case invalidFileDescriptor(fd: Int32)

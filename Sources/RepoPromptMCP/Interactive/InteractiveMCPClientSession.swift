@@ -6,6 +6,12 @@
 //  Handles bootstrap handshake, tool caching, and tool calls.
 //
 
+#if os(Linux)
+import Glibc
+typealias Darwin = Glibc
+#else
+import Darwin
+#endif
 import Foundation
 import Logging
 import MCP
@@ -615,21 +621,21 @@ actor InteractiveMCPClientSession {
         }
 
         // Disable SIGPIPE
+        #if !os(Linux)
         var noSigPipe: Int32 = 1
         setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
+        #endif
 
         // Set up socket address
         var addr = sockaddr_un()
         addr.sun_family = sa_family_t(AF_UNIX)
 
-        let path = socketURL.path
-        guard path.utf8.count < MemoryLayout.size(ofValue: addr.sun_path) else {
-            throw InteractiveSessionError.pathTooLong
-        }
-
+        let pathBytes = path.utf8CString
         withUnsafeMutablePointer(to: &addr.sun_path) { ptr in
-            path.withCString { cstr in
-                _ = strcpy(UnsafeMutableRawPointer(ptr).assumingMemoryBound(to: CChar.self), cstr)
+            ptr.withMemoryRebound(to: CChar.self, capacity: pathBytes.count) { dest in
+                for (i, byte) in pathBytes.enumerated() {
+                    dest[i] = byte
+                }
             }
         }
 

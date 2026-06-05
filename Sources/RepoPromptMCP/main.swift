@@ -6,6 +6,11 @@ import RepoPromptShared
 import ServiceLifecycle
 import SystemPackage
 
+#if os(Linux)
+import Glibc
+typealias Darwin = Glibc
+#endif
+
 // MARK: - Version Constants
 
 /// Update this when releasing new versions
@@ -113,6 +118,16 @@ enum CLIEventLogger {
     static func detectClientName() -> String? {
         let parentPID = getppid()
         debugLog("detectClientName: parentPID=\(parentPID)")
+        #if os(Linux)
+        let exeSymlink = "/proc/\(parentPID)/exe"
+        if let execPath = try? FileManager.default.destinationOfSymbolicLink(atPath: exeSymlink) {
+            let result = URL(fileURLWithPath: execPath).lastPathComponent
+            debugLog("detectClientName: execPath='\(execPath)' result='\(result)'")
+            return result
+        }
+        debugLog("detectClientName: failed to resolve symlink for parentPID=\(parentPID)")
+        return nil
+        #else
         var name = [CChar](repeating: 0, count: 1024)
         var size = name.count
 
@@ -135,6 +150,7 @@ enum CLIEventLogger {
         let result = URL(fileURLWithPath: execPath).lastPathComponent
         debugLog("detectClientName: execPath='\(execPath)' result='\(result)'")
         return result
+        #endif
     }
 
     /// Determines if an error should be persisted as an event file.
@@ -540,8 +556,10 @@ actor BootstrapSocketProxy {
         }
 
         // Disable SIGPIPE
+        #if !os(Linux)
         var noSigPipe: Int32 = 1
         setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
+        #endif
 
         // Set up socket address
         var addr = sockaddr_un()

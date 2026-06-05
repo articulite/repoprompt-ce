@@ -6,7 +6,12 @@
 //	Replaces filesystem-based discovery with direct socket connection.
 //
 
+#if os(Linux)
+import Glibc
+typealias Darwin = Glibc
+#else
 import Darwin
+#endif
 import Dispatch
 import Foundation
 import Logging
@@ -273,8 +278,10 @@ actor BootstrapSocketServer {
         }
 
         // Disable SIGPIPE
+        #if !os(Linux)
         var noSigPipe: Int32 = 1
         setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
+        #endif
 
         // Bind to socket path
         var addr = sockaddr_un()
@@ -710,8 +717,10 @@ actor BootstrapSocketServer {
         _ = fcntl(clientFD, F_SETFL, flags & ~O_NONBLOCK)
 
         // Disable SIGPIPE on client socket
+        #if !os(Linux)
         var noSigPipe: Int32 = 1
         setsockopt(clientFD, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
+        #endif
 
         // Read handshake request (with timeout)
         guard let request = await readHandshakeRequestAsync(
