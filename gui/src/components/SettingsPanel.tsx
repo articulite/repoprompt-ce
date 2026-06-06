@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import {
   Sliders, Terminal, Layers, Cpu, Folder, FileCode,
-  Search, X, Check, Loader2, HardDrive, Plus, Trash2
+  Search, X, Loader2, HardDrive, Plus, Trash2
 } from "lucide-react";
 import { mcpClient } from "../mcpClient";
 import { safeParseJSON } from "../utils";

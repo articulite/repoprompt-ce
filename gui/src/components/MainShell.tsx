@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from "react";
 import {
-  FolderTree, MessageSquare, Terminal, Settings,
-  ChevronDown, Plus, RefreshCw, LogOut, Code, GitBranch,
+  FolderTree, MessageSquare, Terminal, Settings, Cpu,
+  ChevronDown, Plus, RefreshCw, LogOut, GitBranch,
   HardDrive, Folder, FolderOpen, File, FileText, FileCode,
   ChevronRight
 } from "lucide-react";
 import { mcpClient } from "../mcpClient";
 import { safeParseJSON } from "../utils";
 import ChatPanel from "./ChatPanel";
+import ContextBuilderPanel from "./ContextBuilderPanel";
 import AgentModePanel from "./AgentModePanel";
 import SettingsPanel from "./SettingsPanel";
 
@@ -28,7 +29,7 @@ interface MainShellProps {
 }
 
 export default function MainShell({ workspaceName, onExitWorkspace, isConnected }: MainShellProps) {
-  const [activeTab, setActiveTab] = useState<"chat" | "agent" | "settings">("chat");
+  const [activeTab, setActiveTab] = useState<"chat" | "agent" | "context" | "settings">("chat");
   const [fileTree, setFileTree] = useState<string>("Loading workspace directory...");
   const [treeMode, setTreeMode] = useState<"auto" | "full" | "folders">("auto");
   const [loadingTree, setLoadingTree] = useState(false);
@@ -47,6 +48,15 @@ export default function MainShell({ workspaceName, onExitWorkspace, isConnected 
       loadWorkspacesList();
     }
   }, [isConnected, workspaceName]);
+
+  // Automatically switch tab to chat when a prompt is injected
+  useEffect(() => {
+    const handlePromptInjected = () => {
+      setActiveTab("chat");
+    };
+    window.addEventListener("injectPromptIntoChat", handlePromptInjected);
+    return () => window.removeEventListener("injectPromptIntoChat", handlePromptInjected);
+  }, []);
 
   const loadWorkspaceContext = async () => {
     setLoadingTree(true);
@@ -206,6 +216,12 @@ export default function MainShell({ workspaceName, onExitWorkspace, isConnected 
             onClick={() => setActiveTab('chat')}
           >
             <MessageSquare size={16} /> Chat Workspace
+          </button>
+          <button
+            className={`nav-tab ${activeTab === 'context' ? 'active' : ''}`}
+            onClick={() => setActiveTab('context')}
+          >
+            <Cpu size={16} /> Context Builder
           </button>
           <button
             className={`nav-tab ${activeTab === 'agent' ? 'active' : ''}`}
@@ -496,6 +512,7 @@ export default function MainShell({ workspaceName, onExitWorkspace, isConnected 
 
         <div className="tab-viewport">
           {activeTab === 'chat' && <ChatPanel isConnected={isConnected} />}
+          {activeTab === 'context' && <ContextBuilderPanel isConnected={isConnected} />}
           {activeTab === 'agent' && <AgentModePanel isConnected={isConnected} />}
           {activeTab === 'settings' && (
             <SettingsPanel

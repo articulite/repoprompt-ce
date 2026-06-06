@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
   Send, User, Brain, AlertCircle, Coins, Loader2,
-  ChevronDown, ChevronRight, Copy, Check
+  ChevronDown, ChevronRight, Copy, Check, BookOpen, X
 } from "lucide-react";
 import { mcpClient } from "../mcpClient";
 import { safeParseJSON } from "../utils";
@@ -91,7 +91,31 @@ const CodeBlock = ({ language, code }: { language: string; code: string }) => {
   );
 };
 
+const CHAT_TEMPLATES = [
+  {
+    title: "Explain Code",
+    content: "Explain how this code works in detail, listing key functions, inputs, outputs, and any potential edge cases or bugs."
+  },
+  {
+    title: "Write Unit Tests",
+    content: "Write comprehensive unit tests for this code, covering success paths, edge cases, and error boundaries."
+  },
+  {
+    title: "Refactor Code",
+    content: "Refactor this code to improve readability, performance, and structure. Avoid altering its functional behavior."
+  },
+  {
+    title: "Fix Bug",
+    content: "Locate the bug in this code and suggest a fix. Describe the root cause and how to verify the correction."
+  },
+  {
+    title: "Write Comments",
+    content: "Add clear docstrings and comments explaining the architecture and logic of this code."
+  }
+];
+
 export default function ChatPanel({ isConnected }: ChatPanelProps) {
+  const [showTemplates, setShowTemplates] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
@@ -142,6 +166,23 @@ export default function ChatPanel({ isConnected }: ChatPanelProps) {
 
     window.addEventListener("fileClickedInExplorer", handleFileClicked);
     return () => window.removeEventListener("fileClickedInExplorer", handleFileClicked);
+  }, []);
+
+  // Listen for prompt injections from ContextBuilderPanel
+  useEffect(() => {
+    const handlePromptInjected = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const text = customEvent.detail.text;
+      if (text) {
+        setInput(text);
+        if (inputRef.current) {
+          inputRef.current.focus();
+        }
+      }
+    };
+
+    window.addEventListener("injectPromptIntoChat", handlePromptInjected);
+    return () => window.removeEventListener("injectPromptIntoChat", handlePromptInjected);
   }, []);
 
   const scrollToBottom = () => {
@@ -338,8 +379,9 @@ export default function ChatPanel({ isConnected }: ChatPanelProps) {
 
   return (
     <div className="chat-layout">
-      {/* Messages viewport */}
-      <div className="chat-messages">
+      <div className="chat-main-section">
+        {/* Messages viewport */}
+        <div className="chat-messages">
         {messages.map((msg, i) => (
           <div key={i} className={`chat-bubble-container ${msg.role}`}>
             <div className="avatar">
@@ -446,8 +488,51 @@ export default function ChatPanel({ isConnected }: ChatPanelProps) {
             <span>Output Tokens:</span>
             <strong>{tokenCost.outputTokens}</strong>
           </div>
+          {/* Spacer */}
+          <div style={{ flex: 1 }}></div>
+          {/* Toggle templates sidebar */}
+          <button
+            type="button"
+            className={`btn-templates-toggle ${showTemplates ? 'active' : ''}`}
+            onClick={() => setShowTemplates(!showTemplates)}
+            title="Preset Prompt Templates"
+          >
+            <BookOpen size={12} />
+            <span>Templates</span>
+          </button>
         </div>
       </div>
+      </div>
+
+      {/* Templates Sidebar */}
+      {showTemplates && (
+        <div className="chat-templates-sidebar glass border-left animate-fade-in">
+          <div className="templates-header">
+            <h4>Prompt Templates</h4>
+            <button type="button" className="btn-icon-small" onClick={() => setShowTemplates(false)}>
+              <X size={14} />
+            </button>
+          </div>
+          <div className="templates-list">
+            {CHAT_TEMPLATES.map((tmpl, idx) => (
+              <div
+                key={idx}
+                className="template-card"
+                onClick={() => {
+                  setInput(tmpl.content);
+                  setShowTemplates(false);
+                  if (inputRef.current) {
+                    inputRef.current.focus();
+                  }
+                }}
+              >
+                <h5>{tmpl.title}</h5>
+                <p>{tmpl.content}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -3,7 +3,7 @@ import {
   Square, RefreshCw, Layers, Terminal as TermIcon, MessageSquare,
   ChevronRight, ChevronDown, CheckCircle, XCircle,
   HelpCircle, Send, ArrowRight, Loader2, List, FileText,
-  Search, GitBranch, Check, X, Play, Copy, AlertTriangle, FileCode
+  Search, GitBranch, Check, X, Copy, FileCode
 } from "lucide-react";
 import { mcpClient } from "../mcpClient";
 import { safeParseJSON } from "../utils";
@@ -611,7 +611,6 @@ export default function AgentModePanel({ isConnected }: AgentModePanelProps) {
   const renderBashCard = (g: LogGroup, isExpanded: boolean) => {
     const args = safeParseJSON(g.toolArgs || "");
     const command = args?.command || args?.CommandLine || "";
-    const isError = g.toolResult?.type === "error" || (g.toolResult?.content && g.toolResult.content.includes("exit_code") && !g.toolResult.content.includes("exit_code: 0"));
 
     return (
       <div className="tool-card-expanded animate-fade-in">
@@ -686,7 +685,7 @@ export default function AgentModePanel({ isConnected }: AgentModePanelProps) {
   };
 
   // Card sub-renderer: Ask User Card (Clarification Request)
-  const renderAskUserCard = (g: LogGroup, isExpanded: boolean) => {
+  const renderAskUserCard = (g: LogGroup, _isExpanded: boolean) => {
     const args = safeParseJSON(g.toolArgs || "");
     const question = args?.question || args?.message || "Clarification question from subagent.";
     const options: string[] = args?.options || [];
@@ -826,7 +825,7 @@ export default function AgentModePanel({ isConnected }: AgentModePanelProps) {
   };
 
   // Main router for executing cards
-  const renderToolExecutionCard = (group: LogGroup, index: number) => {
+  const renderToolExecutionCard = (group: LogGroup, _index: number) => {
     const isExpanded = !!expandedCards[group.id];
     const isError = group.toolResult?.type === "error";
     const isRunning = !group.toolResult;
