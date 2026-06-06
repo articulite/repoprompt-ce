@@ -5,6 +5,12 @@
 
     public typealias Darwin = RepoPromptShared.Darwin
 
+    // MARK: - Selection Debug Logging Shim
+    func selectionLog(_ message: @autoclosure () -> String) {
+        print("[Selection] \(message())")
+    }
+    func setSelectionDebugLogging(enabled: Bool) {}
+
     // MARK: - Appearance Shim
 
     public class AppearanceController: ObservableObject {
@@ -302,22 +308,36 @@
     // MARK: - WindowState Shim
 
     class WindowState: ObservableObject {
-        let windowID: Int = 1
+        let windowID: Int
         let mcpServer: MCPServerViewModel
         let workspaceManager: WorkspaceManagerViewModel
         let promptManager: PromptViewModel
+        let workspaceFileContextStore: WorkspaceFileContextStore
+        let workspaceSearchService: WorkspaceSearchService
+        let contextBuilderAgentViewModel = ContextBuilderAgentViewModel()
         var workspaceInstanceNumber: Int? { nil }
         @MainActor let agentModeViewModel = AgentModeViewModel()
 
         init(
+            windowID: Int = 1,
             mcpServer: MCPServerViewModel = MCPServerViewModel(),
-            workspaceManager: WorkspaceManagerViewModel = WorkspaceManagerViewModel(),
-            promptManager: PromptViewModel = PromptViewModel()
+            workspaceManager: WorkspaceManagerViewModel? = nil,
+            promptManager: PromptViewModel? = nil,
+            workspaceFileContextStore: WorkspaceFileContextStore = WorkspaceFileContextStore(),
+            workspaceSearchService: WorkspaceSearchService = WorkspaceSearchService()
         ) {
+            self.windowID = windowID
             self.mcpServer = mcpServer
-            self.workspaceManager = workspaceManager
-            self.promptManager = promptManager
+            self.workspaceFileContextStore = workspaceFileContextStore
+            self.workspaceSearchService = workspaceSearchService
+            let wsManager = workspaceManager ?? WorkspaceManagerViewModel(store: workspaceFileContextStore, searchService: workspaceSearchService)
+            self.workspaceManager = wsManager
+            self.promptManager = promptManager ?? PromptViewModel(
+                workspaceFileContextStore: workspaceFileContextStore,
+                workspaceSearchService: workspaceSearchService
+            )
         }
+        func revealPendingInteraction(tabID: UUID, surface: PendingInteractionSurface) async -> Bool { false }
     }
 
     // MARK: - WindowStatesManager Shim
@@ -327,15 +347,257 @@
         static let shared = WindowStatesManager()
         var allWindows: [WindowState] = []
         var isMultiWindowModeEffectivelyActive: Bool { false }
-        func firstMCPEnabledWindow() -> WindowState? { nil }
-        func hasWindow(id: Int) -> Bool { false }
-        func hasWindowWithMCPEnabled(_ id: Int) -> Bool { false }
-        func window(withID id: Int) -> WindowState? { nil }
+        func firstMCPEnabledWindow() -> WindowState? { allWindows.first }
+        func hasWindow(id: Int) -> Bool { allWindows.contains { $0.windowID == id } }
+        func hasWindowWithMCPEnabled(_ id: Int) -> Bool { allWindows.contains { $0.windowID == id } }
+        func window(withID id: Int) -> WindowState? { allWindows.first { $0.windowID == id } }
     }
 
     // MARK: - MCPServerViewModel Shim
 
     class MCPServerViewModel: ObservableObject {
+        static let codeMapsGloballyDisabledMCPMessage = "Code Maps are globally disabled in Advanced Settings; codemap-only selection modes and get_code_structure are unavailable."
+
+        struct TabContextSnapshot {
+            let tabID: UUID
+            let windowID: Int
+            let workspaceID: UUID?
+            var promptText: String
+            var selection: StoredSelection
+            var selectedMetaPromptIDs: [UUID]
+            var tabName: String
+            var runID: UUID?
+            var activeAgentSessionID: UUID?
+            var worktreeBindings: [AgentSessionWorktreeBinding]
+            let explicitlyBound: Bool
+            var readFileAutoSelectionGeneration: UInt64
+
+            init(
+                tabID: UUID,
+                windowID: Int,
+                workspaceID: UUID?,
+                promptText: String,
+                selection: StoredSelection,
+                selectedMetaPromptIDs: [UUID],
+                tabName: String,
+                runID: UUID?,
+                activeAgentSessionID: UUID? = nil,
+                worktreeBindings: [AgentSessionWorktreeBinding] = [],
+                explicitlyBound: Bool,
+                readFileAutoSelectionGeneration: UInt64 = 0
+            ) {
+                self.tabID = tabID
+                self.windowID = windowID
+                self.workspaceID = workspaceID
+                self.promptText = promptText
+                self.selection = selection
+                self.selectedMetaPromptIDs = selectedMetaPromptIDs
+                self.tabName = tabName
+                self.runID = runID
+                self.activeAgentSessionID = activeAgentSessionID
+                self.worktreeBindings = worktreeBindings
+                self.explicitlyBound = explicitlyBound
+                self.readFileAutoSelectionGeneration = readFileAutoSelectionGeneration
+            }
+        }
+
+        typealias TabScopedContext = TabContextSnapshot
+
+        struct ResolvedTabContextSnapshot {
+            var snapshot: TabContextSnapshot
+            let usesActiveTabCompatibility: Bool
+
+            init(snapshot: TabContextSnapshot, usesActiveTabCompatibility: Bool = false) {
+                self.snapshot = snapshot
+                self.usesActiveTabCompatibility = usesActiveTabCompatibility
+            }
+        }
+
+        enum TabContextResolutionPolicy: Equatable {
+            case requireExplicitOrRunScoped
+            case allowLegacyImplicitRouting
+            case allowActiveTabCompatibility
+
+            var allowsLegacyImplicitRouting: Bool {
+                self == .allowLegacyImplicitRouting
+            }
+
+            var allowsActiveTabCompatibility: Bool {
+                switch self {
+                case .allowLegacyImplicitRouting, .allowActiveTabCompatibility:
+                    true
+                case .requireExplicitOrRunScoped:
+                    false
+                }
+            }
+        }
+
+        struct RequestMetadata {
+            let connectionID: UUID?
+            let clientName: String?
+            let windowID: Int?
+            let runPurpose: MCPRunPurpose? = nil
+            let tabContextHint: TabContextHint? = nil
+
+            init(
+                connectionID: UUID?,
+                clientName: String?,
+                windowID: Int?,
+                isClientAgentModeAnalogue: Bool = false,
+                isClientSystemWorkspaceAnalogue: Bool = false,
+                isClientWorkspaceDiagnosticsAnalogue: Bool = false,
+                clientAppID: String? = nil
+            ) {
+                self.connectionID = connectionID
+                self.clientName = clientName
+                self.windowID = windowID
+            }
+        }
+
+        struct ManageSelectionInputs {
+            let paths: [String]
+            let sliceInputs: [WorkspaceSelectionSliceInput]
+            let sliceErrors: [String]
+            let hadExplicitSliceSpec: Bool
+
+            init(
+                paths: [String],
+                slices: [WorkspaceSelectionSliceInput] = [],
+                errors: [String: String] = [:]
+            ) {
+                self.paths = paths
+                self.sliceInputs = slices
+                self.sliceErrors = Array(errors.values)
+                self.hadExplicitSliceSpec = !slices.isEmpty
+            }
+
+            init(
+                paths: [String],
+                sliceInputs: [WorkspaceSelectionSliceInput],
+                sliceErrors: [String],
+                hadExplicitSliceSpec: Bool
+            ) {
+                self.paths = paths
+                self.sliceInputs = sliceInputs
+                self.sliceErrors = sliceErrors
+                self.hadExplicitSliceSpec = hadExplicitSliceSpec
+            }
+        }
+
+        struct BuildStoredSelectionResult {
+            let selection: StoredSelection
+            let invalidPaths: [String]
+            let warnings: [String: String]
+            let successPaths: [String]
+            let codemapUnavailable: [String] = []
+
+            init(
+                selection: StoredSelection,
+                invalidPaths: [String] = [],
+                warnings: [String: String] = [:],
+                successPaths: [String] = []
+            ) {
+                self.selection = selection
+                self.invalidPaths = invalidPaths
+                self.warnings = warnings
+                self.successPaths = successPaths
+            }
+        }
+
+        struct AddStoredSelectionResult {
+            let selection: StoredSelection
+            let invalidPaths: [String]
+            let warnings: [String: String]
+            let successPaths: [String]
+            let codeMapAddedPaths: [String]
+            let resolvedMap: [String: String] = [:]
+            let mutated: Bool = false
+            let codemapUnavailable: [String] = []
+
+            init(
+                selection: StoredSelection,
+                invalidPaths: [String] = [],
+                warnings: [String: String] = [:],
+                successPaths: [String] = [],
+                codeMapAddedPaths: [String] = []
+            ) {
+                self.selection = selection
+                self.invalidPaths = invalidPaths
+                self.warnings = warnings
+                self.successPaths = successPaths
+                self.codeMapAddedPaths = codeMapAddedPaths
+            }
+        }
+
+        struct DemoteStoredSelectionResult {
+            let selection: StoredSelection
+            let invalidPaths: [String]
+            let warnings: [String: String]
+            let successPaths: [String]
+            let codeMapRemovedPaths: [String]
+            let codemapUnavailable: [String]
+            let mutated: Bool
+
+            init(
+                selection: StoredSelection,
+                invalidPaths: [String] = [],
+                warnings: [String: String] = [:],
+                successPaths: [String] = [],
+                codeMapRemovedPaths: [String] = [],
+                codemapUnavailable: [String] = [],
+                mutated: Bool = false
+            ) {
+                self.selection = selection
+                self.invalidPaths = invalidPaths
+                self.warnings = warnings
+                self.successPaths = successPaths
+                self.codeMapRemovedPaths = codeMapRemovedPaths
+                self.codemapUnavailable = codemapUnavailable
+                self.mutated = mutated
+            }
+        }
+
+        struct MCPSelectionSlicesMutationResult {
+            let successEntries: [WorkspaceSelectionSliceInput]
+            let invalidPaths: [String]
+            let warnings: [String: String]
+            let resolvedMap: [String: String] = [:]
+            let snapshot: [UUID: [LineRange]] = [:]
+
+            init(
+                successEntries: [WorkspaceSelectionSliceInput] = [],
+                invalidPaths: [String] = [],
+                warnings: [String: String] = [:]
+            ) {
+                self.successEntries = successEntries
+                self.invalidPaths = invalidPaths
+                self.warnings = warnings
+            }
+        }
+
+        struct CopyPresetSelector {
+            var id: UUID?
+            var kind: CopyPresetKind?
+            var name: String?
+        }
+
+        struct SelectionReplyAssembler {
+            struct SelectedEntry {
+                let file: WorkspaceFileRecord
+            }
+            struct CodemapEntry {
+                let file: WorkspaceFileRecord
+            }
+            struct SelectionCollections {
+                let selected: [SelectedEntry]
+                let codemap: [CodemapEntry]
+                let codemapAutoEnabled: Bool
+                let codeMapUsage: CodeMapUsage
+                let invalid: [String]
+                let codemapSnapshots: [UUID: WorkspaceCodemapSnapshot]
+            }
+        }
+
         struct ConnectionBindingSnapshot: Equatable {
             enum BindingKind: Equatable {
                 case unbound
@@ -471,11 +733,38 @@
         }
 
         static func loadableRepoPaths(for workspace: WorkspaceModel) -> [String] {
-            []
+            workspace.repoPaths
         }
 
-        var activeWorkspace: WorkspaceModel? { nil }
+        @Published var activeWorkspace: WorkspaceModel? = nil
         var workspaceSearchReadinessState: WorkspaceSearchReadinessState = .idle
+
+        private let store: WorkspaceFileContextStore
+        private let searchService: WorkspaceSearchService
+
+        init(store: WorkspaceFileContextStore = WorkspaceFileContextStore(), searchService: WorkspaceSearchService = WorkspaceSearchService()) {
+            self.store = store
+            self.searchService = searchService
+        }
+
+        func switchWorkspace(to workspace: WorkspaceModel) async {
+            let existingRoots = await store.roots()
+            await store.unloadRoots(ids: existingRoots.map(\.id))
+
+            self.activeWorkspace = workspace
+
+            for path in workspace.repoPaths {
+                let wslPath = PathTranslator.toWSLPath(path)
+                do {
+                    try await store.loadRoot(path: wslPath)
+                    print("[HeadlessWorkspace] Loaded root path: \(wslPath)")
+                } catch {
+                    print("[HeadlessWorkspace] Failed to load root path: \(wslPath), error: \(error)")
+                }
+            }
+
+            await searchService.startKeepingFresh(with: store)
+        }
 
         func resolveComposeTabRoutingSnapshot(for tabID: UUID) -> ComposeTabRoutingSnapshot? {
             nil
@@ -487,14 +776,100 @@
         func updateComposeTabStoredOnly(_ tab: ComposeTabState) {}
         func bindingCandidate(forContextID id: UUID) -> ComposeTabBindingCandidate? { nil }
         func bindingCandidates(matchingWorkingDirs dirs: [String], includeHidden: Bool = false) -> [ComposeTabBindingCandidate] { [] }
-        init() {}
+
+        func workspaceDirectory(for workspace: WorkspaceModel) -> URL {
+            let home = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+            let safeName = workspace.name
+                .replacingOccurrences(of: "/", with: "_")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return home
+                .appendingPathComponent(".local", isDirectory: true)
+                .appendingPathComponent("share", isDirectory: true)
+                .appendingPathComponent("RepoPrompt CE", isDirectory: true)
+                .appendingPathComponent("Workspaces", isDirectory: true)
+                .appendingPathComponent("Workspace-\(safeName)-\(workspace.id.uuidString)", isDirectory: true)
+        }
     }
 
     // MARK: - PromptViewModel Shim
 
+    enum ChatMode: String, Codable, CaseIterable {
+        case plan
+        case chat
+    }
+
+    struct ChatPreset: Identifiable, Equatable, Codable {
+        let id: UUID
+        let name: String
+        let mode: ChatMode
+
+        init(id: UUID = UUID(), name: String = "Default", mode: ChatMode = .plan) {
+            self.id = id
+            self.name = name
+            self.mode = mode
+        }
+    }
+
     class PromptViewModel: ObservableObject {
         var activeComposeTabID: UUID? { nil }
-        init() {}
+        var codeMapsGloballyDisabled: Bool { true }
+        var filePathDisplayOption: FilePathDisplay { .relative }
+        var contextBuilderAgent: AgentProviderKind = .claudeCode
+        var contextBuilderAgentModelRaw: String = "default"
+        var workingCopyCustomizations: CopyCustomizations = .init()
+        var planningModel: AIModel { .placeholder }
+        var tokenCountingViewModel = TokenCountingViewModel()
+        func isModelAvailable(_ model: AIModel) -> Bool { true }
+
+        let workspaceFileContextStore: WorkspaceFileContextStore
+        let workspaceSearchService: WorkspaceSearchService
+
+        init(
+            workspaceFileContextStore: WorkspaceFileContextStore = WorkspaceFileContextStore(),
+            workspaceSearchService: WorkspaceSearchService = WorkspaceSearchService()
+        ) {
+            self.workspaceFileContextStore = workspaceFileContextStore
+            self.workspaceSearchService = workspaceSearchService
+        }
+
+        func resolvePromptContext(_ preset: CopyPreset, custom: CopyCustomizations) -> PromptContextResolved {
+            PromptContextResolved(
+                includeFiles: true,
+                includeUserPrompt: true,
+                includeMetaPrompts: true,
+                includeFileTree: true,
+                fileTreeMode: .none,
+                codeMapUsage: .none,
+                gitInclusion: .none
+            )
+        }
+
+        func resolvePromptContext() -> PromptContextResolved {
+            PromptContextResolved(
+                includeFiles: true,
+                includeUserPrompt: true,
+                includeMetaPrompts: true,
+                includeFileTree: true,
+                fileTreeMode: .none,
+                codeMapUsage: .none,
+                gitInclusion: .none
+            )
+        }
+
+        func calculateTokensForChatContext() -> Int { 0 }
+        var totalTokenCountFilesOnly: Int { 0 }
+        var codeMapFileCount: Int { 0 }
+        var codeMapTokenCount: Int { 0 }
+        var promptText: String = ""
+
+        func currentCopyPreset() -> CopyPreset {
+            CopyPreset(name: "Default")
+        }
+        func currentChatPreset() -> ChatPreset {
+            ChatPreset(mode: .plan)
+        }
+        func selectCopyPreset(_ id: UUID) {}
+        func buildClipboard(for resolved: PromptContextResolved) -> String { "" }
     }
 
     // MARK: - APISettingsViewModel Shim
@@ -505,11 +880,148 @@
 
     // MARK: - AgentModeViewModel Shim
 
+    public struct AgentSessionWorktreeMergeOperation: Codable, Equatable, Identifiable {
+        public enum Status: String, Codable, CaseIterable {
+            case previewed
+            case awaitingApproval = "awaiting_approval"
+            case applying
+            case conflicted
+            case awaitingCommit = "awaiting_commit"
+            case stale
+            case completed
+            case failed
+            case cancelled
+            case aborted
+        }
+
+        public let id: String
+        public let source: GitWorktreeMergeEndpoint
+        public let target: GitWorktreeMergeEndpoint
+        public let mergeBase: String?
+        public let sourceHead: String
+        public let targetHeadBefore: String
+        public let resultCommit: String?
+        public let visualization: String?
+        public let summary: GitWorktreeMergeSummary?
+        public let previewArtifacts: GitWorktreeMergePreviewArtifacts?
+        public let conflictFiles: [String]
+        public let status: Status
+        public let lastError: String?
+    }
+
     @MainActor
     class AgentModeViewModel: ObservableObject {
         static let shared = AgentModeViewModel()
         func mcpSpawnParentSessionID(sourceTabID: UUID) -> UUID? { nil }
+
+        func previewWorktreeMerge(
+            sessionID: UUID,
+            repoRoot: String?,
+            target: String,
+            contextLines: Int,
+            detectRenames: Bool,
+            publishArtifacts: Bool,
+            graphLimit: Int
+        ) async throws -> GitWorktreeMergePreview {
+            throw MCPError.invalidParams("Worktree merge is not supported on Linux")
+        }
+
+        func requestWorktreeMergeReviewAndApply(
+            sessionID: UUID,
+            operationID: String,
+            commitMessage: String?
+        ) async throws -> GitWorktreeMergeApplyResult {
+            throw MCPError.invalidParams("Worktree merge is not supported on Linux")
+        }
+
+        func applyConfirmedWorktreeMerge(
+            sessionID: UUID,
+            operationID: String,
+            commitMessage: String?
+        ) async throws -> GitWorktreeMergeApplyResult {
+            throw MCPError.invalidParams("Worktree merge is not supported on Linux")
+        }
+
+        func statusWorktreeMerge(
+            sessionID: UUID,
+            operationID: String?
+        ) throws -> AgentSessionWorktreeMergeOperation {
+            throw MCPError.invalidParams("Worktree merge is not supported on Linux")
+        }
+
+        func continueWorktreeMerge(
+            sessionID: UUID,
+            operationID: String,
+            confirmed: Bool,
+            commitMessage: String?
+        ) async throws -> GitWorktreeMergeApplyResult {
+            throw MCPError.invalidParams("Worktree merge is not supported on Linux")
+        }
+
+        func abortWorktreeMerge(
+            sessionID: UUID,
+            operationID: String,
+            confirmed: Bool
+        ) async throws -> GitWorktreeMergeAbortResult {
+            throw MCPError.invalidParams("Worktree merge is not supported on Linux")
+        }
+
+        func worktreeBindings(forAgentSessionID sessionID: UUID, tabID: UUID? = nil) -> [AgentSessionWorktreeBinding] {
+            []
+        }
+
+        @discardableResult
+        func replaceWorktreeBindings(_ bindings: [AgentSessionWorktreeBinding], forSessionID sessionID: UUID) throws -> [AgentSessionWorktreeBinding] {
+            []
+        }
+
+        @discardableResult
+        func transitionWorktreeBindings(
+            _ desiredBindings: [AgentSessionWorktreeBinding],
+            forSessionID sessionID: UUID,
+            intent: WorktreeBindingTransitionIntent
+        ) async throws -> [AgentSessionWorktreeBinding] {
+            desiredBindings
+        }
+
+        func isMCPControlled(tabID: UUID) -> Bool { false }
+        func askUserInteraction(tabID: UUID, interaction: AgentAskUserInteraction) async throws -> AgentAskUserResponse {
+            throw MCPError.invalidParams("Agent interaction not supported on Linux")
+        }
+        func shareThoughts(_ thoughts: String, title: String?, tabID: UUID) {}
+        func renameSession(tabID: UUID, to name: String) {}
+        func waitForNextUserInstruction(
+            tabID: UUID,
+            prompt: String?,
+            timeoutSeconds: TimeInterval?
+        ) async throws -> UserInstructionResponse {
+            throw MCPError.invalidParams("User instruction waiting not supported on Linux")
+        }
+
         init() {}
+    }
+
+    public struct UserInstructionResponse: Sendable {
+        public let text: String?
+        public let timedOut: Bool
+        public let elapsedSeconds: Int
+
+        public init(text: String?, timedOut: Bool, elapsedSeconds: Int) {
+            self.text = text
+            self.timedOut = timedOut
+            self.elapsedSeconds = elapsedSeconds
+        }
+    }
+
+    public enum ExecutionLocationChangeConfirmation: Equatable {
+        case startedThreadRestart
+        case activeRunStop
+    }
+
+    public enum WorktreeBindingTransitionIntent {
+        case initialSend
+        case userExecutionLocationChange(confirmation: ExecutionLocationChangeConfirmation?)
+        case externalManagement
     }
 
     // MARK: - CLISymlinkManagerUserSpace Shim
@@ -624,17 +1136,20 @@
                     annotations: .repoPromptLocalEphemeralState,
                     implementation: { args in
                         let op = args["op"]?.stringValue ?? "status"
+                        let activeWindow = await MainActor.run { WindowStatesManager.shared.firstMCPEnabledWindow() }
+                        let wsName = await MainActor.run { activeWindow?.workspaceManager.activeWorkspace?.name ?? "repoprompt-ce" }
+                        let wsPaths = await MainActor.run { activeWindow?.workspaceManager.activeWorkspace?.repoPaths ?? [] }
 
                         let mockWorkspace = BindContextResponse.WorkspaceDTO(
                             id: "99999999-8888-7777-6666-555555555555",
-                            name: "repoprompt-ce"
+                            name: wsName
                         )
                         let mockTab = BindContextResponse.TabDTO(
                             context_id: "11111111-2222-3333-4444-555555555555",
                             name: "Compose",
                             is_active: true,
                             is_bound: true,
-                            repo_paths: []
+                            repo_paths: wsPaths
                         )
                         let mockWindow = BindContextResponse.WindowDTO(
                             window_id: 1,
@@ -649,7 +1164,7 @@
                             context_id: mockTab.context_id,
                             workspace_name: mockWorkspace.name,
                             tab_name: mockTab.name,
-                            repo_paths: [],
+                            repo_paths: wsPaths,
                             explicit: true,
                             run_scoped: false
                         )
@@ -662,7 +1177,7 @@
                             matched_by: "working_dirs",
                             created_tab: false,
                             created_workspace: false,
-                            normalized_working_dirs: [],
+                            normalized_working_dirs: wsPaths,
                             note: "Bound headlessly in WSL 2"
                         )
                     }
@@ -673,17 +1188,53 @@
                     description: "Manage workspaces and compose-tab lifecycle across RepoPrompt windows.",
                     inputSchema: .object(
                         properties: [
-                            "action": .string(description: "Operation: 'list', 'switch', etc.", enum: ["list", "switch", "create", "delete"]),
-                            "workspace": .string(description: "Workspace UUID or name")
+                            "action": .string(description: "Operation: 'list', 'switch', etc.", enum: ["list", "switch", "create", "delete", "add_folder", "remove_folder"]),
+                            "workspace": .string(description: "Workspace UUID or name"),
+                            "folder_path": .string(description: "Absolute folder path for workspace creation or modification")
                         ],
                         required: ["action"]
                     ),
                     annotations: .repoPromptLocalEphemeralState,
-                    implementation: { _ in
-                        ManageWorkspacesResponse(
-                            status: "ok",
-                            workspaces: []
-                        )
+                    implementation: { args in
+                        let action = args["action"]?.stringValue ?? "list"
+                        let activeWindow = await MainActor.run { WindowStatesManager.shared.firstMCPEnabledWindow() }
+
+                        if action == "switch" {
+                            guard let wsParam = args["workspace"]?.stringValue else {
+                                throw MCPError.invalidParams("Missing 'workspace' parameter for switch action")
+                            }
+                            let folderPath = args["folder_path"]?.stringValue
+                            let repoPaths = folderPath.flatMap { [$0] } ?? (wsParam.hasPrefix("/") ? [wsParam] : [FileManager.default.currentDirectoryPath])
+
+                            let newWS = WorkspaceModel(name: wsParam, repoPaths: repoPaths)
+                            if let activeWindow = activeWindow {
+                                await activeWindow.workspaceManager.switchWorkspace(to: newWS)
+                                print("[HeadlessRouting] Switched workspace to \(wsParam) with paths: \(repoPaths)")
+                            }
+                            return ManageWorkspacesResponse(
+                                status: "ok",
+                                workspaces: [wsParam]
+                            )
+                        } else if action == "add_folder" {
+                            guard let folderPath = args["folder_path"]?.stringValue else {
+                                throw MCPError.invalidParams("Missing 'folder_path' parameter for add_folder action")
+                            }
+                            if let activeWindow = activeWindow, var currentWS = await MainActor.run { activeWindow.workspaceManager.activeWorkspace } {
+                                currentWS.repoPaths.append(folderPath)
+                                await activeWindow.workspaceManager.switchWorkspace(to: currentWS)
+                                print("[HeadlessRouting] Added folder \(folderPath) to workspace \(currentWS.name)")
+                            }
+                            return ManageWorkspacesResponse(
+                                status: "ok",
+                                workspaces: []
+                            )
+                        } else {
+                            let currentWSName = await MainActor.run { activeWindow?.workspaceManager.activeWorkspace?.name ?? "repoprompt-ce" }
+                            return ManageWorkspacesResponse(
+                                status: "ok",
+                                workspaces: [currentWSName]
+                            )
+                        }
                     }
                 )
 
@@ -705,6 +1256,26 @@
                 networkMgr: ServerNetworkManager.shared
             )
             ServiceRegistry.register(routingService)
+
+            let store = WorkspaceFileContextStore()
+            let searchService = WorkspaceSearchService()
+            let defaultWindow = WindowState(
+                windowID: 1,
+                workspaceFileContextStore: store,
+                workspaceSearchService: searchService
+            )
+            WindowStatesManager.shared.allWindows = [defaultWindow]
+
+            Task {
+                let currentDir = FileManager.default.currentDirectoryPath
+                let defaultWS = WorkspaceModel(
+                    name: "repoprompt-ce",
+                    repoPaths: [currentDir]
+                )
+                await defaultWindow.workspaceManager.switchWorkspace(to: defaultWS)
+
+                MCPWindowToolsLinuxCoordinator.registerHeadlessMCPWindowTools(window: defaultWindow)
+            }
         }
     }
 
@@ -1661,6 +2232,445 @@
         public enum AIProviderError: Error {
             case invalidConfiguration(detail: String)
         }
+
+        // MARK: - Prompt/Workspace Context Shims for Linux compilation
+
+        enum CopyPresetKind: String, Codable, CaseIterable {
+            case standard
+            case plan
+            case manual
+            case diffFollowUp
+            case codeReview
+        }
+
+        enum GitInclusion: String, Codable, CaseIterable {
+            case none
+            case selected
+            case complete
+        }
+
+        struct CopyPreset: Identifiable, Equatable, Codable {
+            let id: UUID
+            let name: String
+            let builtInKind: CopyPresetKind?
+            let description: String?
+            let icon: String?
+            let isBuiltIn: Bool
+
+            var includeFiles: Bool?
+            var includeUserPrompt: Bool?
+            var includeMetaPrompts: Bool?
+            var includeFileTree: Bool?
+
+            var fileTreeMode: FileTreeOption?
+            var codeMapUsage: CodeMapUsage?
+            var gitInclusion: GitInclusion?
+
+            var storedPromptIds: [UUID]?
+            var notes: String?
+
+            init(
+                id: UUID = UUID(),
+                name: String,
+                builtInKind: CopyPresetKind? = nil,
+                description: String? = nil,
+                icon: String? = nil,
+                isBuiltIn: Bool = false,
+                includeFiles: Bool? = nil,
+                includeUserPrompt: Bool? = nil,
+                includeMetaPrompts: Bool? = nil,
+                includeFileTree: Bool? = nil,
+                fileTreeMode: FileTreeOption? = nil,
+                codeMapUsage: CodeMapUsage? = nil,
+                gitInclusion: GitInclusion? = nil,
+                storedPromptIds: [UUID]? = nil,
+                notes: String? = nil
+            ) {
+                self.id = id
+                self.name = name
+                self.builtInKind = builtInKind
+                self.description = description
+                self.icon = icon
+                self.isBuiltIn = isBuiltIn
+                self.includeFiles = includeFiles
+                self.includeUserPrompt = includeUserPrompt
+                self.includeMetaPrompts = includeMetaPrompts
+                self.includeFileTree = includeFileTree
+                self.fileTreeMode = fileTreeMode
+                self.codeMapUsage = codeMapUsage
+                self.gitInclusion = gitInclusion
+                self.storedPromptIds = storedPromptIds
+                self.notes = notes
+            }
+        }
+
+        struct PromptContextResolved {
+            var includeFiles: Bool
+            var includeUserPrompt: Bool
+            var includeMetaPrompts: Bool
+            var includeFileTree: Bool
+
+            var fileTreeMode: FileTreeOption
+            var codeMapUsage: CodeMapUsage
+            var gitInclusion: GitInclusion
+
+            var storedPromptIds: [UUID]?
+
+            var rendersFileTree: Bool {
+                includeFileTree && fileTreeMode != .none
+            }
+
+            var effectiveFileTreeMode: FileTreeOption {
+                rendersFileTree ? fileTreeMode : .none
+            }
+
+            init(
+                includeFiles: Bool,
+                includeUserPrompt: Bool,
+                includeMetaPrompts: Bool,
+                includeFileTree: Bool,
+                fileTreeMode: FileTreeOption,
+                codeMapUsage: CodeMapUsage,
+                gitInclusion: GitInclusion,
+                storedPromptIds: [UUID]? = nil
+            ) {
+                self.includeFiles = includeFiles
+                self.includeUserPrompt = includeUserPrompt
+                self.includeMetaPrompts = includeMetaPrompts
+                self.includeFileTree = includeFileTree
+                self.fileTreeMode = fileTreeMode
+                self.codeMapUsage = codeMapUsage
+                self.gitInclusion = gitInclusion
+                self.storedPromptIds = storedPromptIds
+            }
+        }
+
+        enum HeadlessMode: Codable {
+            case plan
+            case chat
+            case review
+        }
+
+        struct OracleExportDestination: Equatable {
+            let workspaceID: UUID
+            let windowID: Int
+            let tabID: UUID?
+            let primaryRootPath: String
+
+            init(workspaceID: UUID, windowID: Int, tabID: UUID?, primaryRootPath: String) {
+                self.workspaceID = workspaceID
+                self.windowID = windowID
+                self.tabID = tabID
+                self.primaryRootPath = primaryRootPath
+            }
+        }
+
+        // MARK: - AgentRunState Shim
+        public enum AgentRunState: Equatable {
+            case idle
+            case running(UUID)
+            case completed
+            case cancelled
+            case failed(String)
+
+            public var isRunning: Bool {
+                if case .running = self { return true }
+                return false
+            }
+
+            public static func == (lhs: AgentRunState, rhs: AgentRunState) -> Bool {
+                switch (lhs, rhs) {
+                case (.idle, .idle), (.completed, .completed), (.cancelled, .cancelled):
+                    return true
+                case let (.running(a), .running(b)):
+                    return a == b
+                case let (.failed(a), .failed(b)):
+                    return a == b
+                default:
+                    return false
+                }
+            }
+        }
+
+        class ContextBuilderAgentViewModel: ObservableObject {
+            init() {}
+            func clearMCPControlledRun(forTabID tabID: UUID) {}
+            func resolvedMCPContextBuilderBudget(for workspaceID: UUID, wantsResponse: Bool) -> Int { 0 }
+            func runContextBuilderForMCP(
+                tabID: UUID,
+                instructionsOverride: String?,
+                tokenBudgetOverride: Int?,
+                persistTokenBudget: Bool,
+                enhancementModeOverride: PromptEnhancementMode,
+                agentOverride: AgentProviderKind,
+                modelOverrideRaw: String,
+                responseType: String?,
+                planModelName: String?
+            ) async throws -> ContextBuilderRunSnapshot {
+                throw MCPError.invalidParams("Context builder runs not supported on Linux")
+            }
+            func askUserInteraction(tabID: UUID, interaction: AgentAskUserInteraction) async throws -> AgentAskUserResponse {
+                throw MCPError.invalidParams("ask_user not supported for context builder on Linux")
+            }
+            var questionTimeoutSeconds: TimeInterval { 300.0 }
+
+            struct ContextBuilderRunSnapshot {
+                let runID: UUID = UUID()
+                let tabID: UUID = UUID()
+                let finalState: ComposeTabState? = nil
+                let runState: AgentRunState = .completed
+                let agentOutput: String? = nil
+                let usedAgentOutputAsPrompt: Bool = false
+            }
+        }
+
+        @MainActor
+        final class ModelPresetsManager: ObservableObject {
+            static let shared = ModelPresetsManager()
+            var presets: [ModelPreset] = []
+            private init() {}
+            func preset(named name: String) -> ModelPreset? { nil }
+            func allPresets() async -> [ModelPreset] { presets }
+        }
+
+        struct ModelPreset: Codable, Identifiable, Equatable {
+            let id: UUID
+            let name: String
+            let modelString: String
+            let description: String?
+            var model: AIModel { .placeholder }
+        }
+
+        class TokenCountingViewModel: ObservableObject {
+            struct TokenBreakdown {
+                let total: Int
+                let files: Int
+                let prompt: Int
+                let meta: Int
+                let fileTree: Int
+                let git: Int
+                let other: Int
+
+                init(total: Int, files: Int, prompt: Int, meta: Int, fileTree: Int, git: Int, other: Int) {
+                    self.total = total
+                    self.files = files
+                    self.prompt = prompt
+                    self.meta = meta
+                    self.fileTree = fileTree
+                    self.git = git
+                    self.other = other
+                }
+            }
+            var totalTokenCountFilesOnly: Int { 0 }
+            func forceImmediateRecount() async {}
+        }
+
+        // MARK: - MCPReadFileAutoSelectionCoordinator Shim
+        @MainActor
+        final class MCPReadFileAutoSelectionCoordinator {
+            enum DrainRequirement: String, Equatable {
+                case canonicalSelection = "canonical"
+                case mirroredSelectionAndMetrics = "mirrored"
+            }
+
+            struct ContextKey: Hashable {
+                let windowID: Int
+                let workspaceID: UUID?
+                let tabID: UUID
+                let route: Route
+                let bindingGeneration: UInt64
+
+                init(windowID: Int, workspaceID: UUID?, tabID: UUID, route: Route, bindingGeneration: UInt64) {
+                    self.windowID = windowID
+                    self.workspaceID = workspaceID
+                    self.tabID = tabID
+                    self.route = route
+                    self.bindingGeneration = bindingGeneration
+                }
+            }
+
+            enum Route: Hashable {
+                case bound(connectionID: UUID, runID: UUID?)
+                case activeTabCompatibility
+            }
+
+            func invalidate(context key: ContextKey) {}
+        }
+
+        // MARK: - PendingInteractionSurface Shim
+        enum PendingInteractionSurface {
+            case contextualQuestion
+            case agentQuestion
+        }
+
+        // MARK: - AgentAskUser Shims
+        struct AgentAskUserOption: Hashable {
+            let label: String
+            let description: String?
+
+            init(label: String, description: String? = nil) {
+                self.label = label
+                self.description = description
+            }
+        }
+
+        struct AgentAskUserQuestion: Hashable {
+            let id: String
+            let header: String?
+            let question: String
+            let context: String?
+            let options: [AgentAskUserOption]
+            let allowsMultiple: Bool
+            let allowsCustom: Bool
+
+            init(
+                id: String,
+                header: String? = nil,
+                question: String,
+                context: String? = nil,
+                options: [AgentAskUserOption] = [],
+                allowsMultiple: Bool = false,
+                allowsCustom: Bool = true
+            ) {
+                self.id = id
+                self.header = header
+                self.question = question
+                self.context = context
+                self.options = options
+                self.allowsMultiple = allowsMultiple
+                self.allowsCustom = allowsCustom
+            }
+
+            var optionLabels: [String] {
+                options.map(\.label)
+            }
+        }
+
+        struct AgentAskUserDraft: Hashable {
+            var selectedOptionLabels: [String]
+            var customResponse: String
+            var skipped: Bool
+
+            init(
+                selectedOptionLabels: [String] = [],
+                customResponse: String = "",
+                skipped: Bool = false
+            ) {
+                self.selectedOptionLabels = selectedOptionLabels
+                self.customResponse = customResponse
+                self.skipped = skipped
+            }
+        }
+
+        struct AgentAskUserAnswer: Hashable {
+            let answers: [String]
+            let selectedOptions: [String]
+            let customResponse: String?
+            let skipped: Bool
+
+            init(
+                answers: [String],
+                selectedOptions: [String],
+                customResponse: String?,
+                skipped: Bool
+            ) {
+                self.answers = answers
+                self.selectedOptions = selectedOptions
+                self.customResponse = customResponse
+                self.skipped = skipped
+            }
+
+            var jsonObject: [String: Any] {
+                [
+                    "answers": answers,
+                    "selected_options": selectedOptions,
+                    "custom_response": customResponse ?? NSNull(),
+                    "skipped": skipped
+                ]
+            }
+        }
+
+        struct AgentAskUserResponse: Hashable {
+            let answersByQuestionID: [String: AgentAskUserAnswer]
+            let timedOut: Bool
+            let skipped: Bool
+            let elapsedSeconds: Int
+
+            init(
+                answersByQuestionID: [String: AgentAskUserAnswer],
+                timedOut: Bool,
+                skipped: Bool,
+                elapsedSeconds: Int
+            ) {
+                self.answersByQuestionID = answersByQuestionID
+                self.timedOut = timedOut
+                self.skipped = skipped
+                self.elapsedSeconds = elapsedSeconds
+            }
+
+            var jsonObject: [String: Any] {
+                [
+                    "answers": answersByQuestionID.reduce(into: [String: [String: Any]]()) { partialResult, entry in
+                        partialResult[entry.key] = entry.value.jsonObject
+                    },
+                    "timed_out": timedOut,
+                    "skipped": skipped,
+                    "elapsed_seconds": elapsedSeconds
+                ]
+            }
+        }
+
+        struct AgentAskUserInteraction: Identifiable, Hashable {
+            let id: UUID
+            let title: String?
+            let context: String?
+            let timeoutSeconds: TimeInterval
+            let askedAt: Date
+            let questions: [AgentAskUserQuestion]
+
+            init(
+                id: UUID = UUID(),
+                title: String? = nil,
+                context: String? = nil,
+                timeoutSeconds: TimeInterval = 300,
+                askedAt: Date = Date(),
+                questions: [AgentAskUserQuestion]
+            ) {
+                self.id = id
+                self.title = title
+                self.context = context
+                self.timeoutSeconds = timeoutSeconds
+                self.askedAt = askedAt
+                self.questions = questions
+            }
+            func validate() throws {}
+        }
+
+
+
+        // MARK: - OracleExportFile Shim
+        struct OracleExportFile: Equatable {
+            let path: String
+            let instruction: String
+        }
+
+        // MARK: - ContextBuilderResponseType Headless extension
+        extension ContextBuilderResponseType {
+            var headlessMode: HeadlessMode? {
+                switch self {
+                case .plan:
+                    .plan
+                case .question:
+                    .chat
+                case .review:
+                    .review
+                case .clarify:
+                    nil
+                }
+            }
+        }
+
+
 
     #endif // os(Linux)
 

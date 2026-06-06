@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Send, User, Brain, AlertCircle, Coins, Loader2 } from "lucide-react";
 import { mcpClient } from "../mcpClient";
+import { safeParseJSON } from "../utils";
 
 interface Message {
   role: "user" | "assistant" | "system";
@@ -49,8 +50,8 @@ export default function ChatPanel({ isConnected }: ChatPanelProps) {
         roles_only: true,
       });
       if (res && !res.isError && res.content && res.content[0]?.text) {
-        const parsed = JSON.parse(res.content[0].text);
-        if (parsed.task_labels) {
+        const parsed = safeParseJSON(res.content[0].text);
+        if (parsed?.task_labels) {
           setRoles(parsed.task_labels);
           // Auto select first role label
           if (parsed.task_labels.length > 0) {
@@ -94,24 +95,20 @@ export default function ChatPanel({ isConnected }: ChatPanelProps) {
         const text = res.content[0].text;
         let assistantReply = text;
 
-        try {
-          const parsedResult = JSON.parse(text);
-          if (parsedResult.summary) {
-            assistantReply = parsedResult.summary;
-          }
-          if (parsedResult.usage) {
-            // Update token counters
-            const inT = parsedResult.usage.input_tokens || 0;
-            const outT = parsedResult.usage.output_tokens || 0;
-            const computedCost = inT * 0.000003 + outT * 0.000015; // Estimator
-            setTokenCost({
-              inputTokens: inT,
-              outputTokens: outT,
-              cost: Number(computedCost.toFixed(4)),
-            });
-          }
-        } catch (e) {
-          // Keep as plain text if it failed to parse
+        const parsedResult = safeParseJSON(text);
+        if (parsedResult?.summary) {
+          assistantReply = parsedResult.summary;
+        }
+        if (parsedResult?.usage) {
+          // Update token counters
+          const inT = parsedResult.usage.input_tokens || 0;
+          const outT = parsedResult.usage.output_tokens || 0;
+          const computedCost = inT * 0.000003 + outT * 0.000015; // Estimator
+          setTokenCost({
+            inputTokens: inT,
+            outputTokens: outT,
+            cost: Number(computedCost.toFixed(4)),
+          });
         }
 
         setMessages((prev) => [

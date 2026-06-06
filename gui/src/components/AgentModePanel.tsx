@@ -5,6 +5,7 @@ import {
   HelpCircle, Send, ArrowRight, Loader2, List
 } from "lucide-react";
 import { mcpClient } from "../mcpClient";
+import { safeParseJSON } from "../utils";
 
 interface Session {
   session_id: string;
@@ -68,8 +69,8 @@ export default function AgentModePanel({ isConnected }: AgentModePanelProps) {
     try {
       const res = await mcpClient.callTool("agent_manage", { op: "list_sessions" });
       if (res && !res.isError && res.content && res.content[0]?.text) {
-        const parsed = JSON.parse(res.content[0].text);
-        if (parsed.sessions) {
+        const parsed = safeParseJSON(res.content[0].text);
+        if (parsed?.sessions) {
           setSessions(parsed.sessions);
         }
       }
@@ -100,8 +101,8 @@ export default function AgentModePanel({ isConnected }: AgentModePanelProps) {
         limit: 100
       });
       if (res && !res.isError && res.content && res.content[0]?.text) {
-        const parsed = JSON.parse(res.content[0].text);
-        if (parsed.transcript_xml) {
+        const parsed = safeParseJSON(res.content[0].text);
+        if (parsed?.transcript_xml) {
           parseSpartanXML(parsed.transcript_xml);
         }
       }
@@ -148,8 +149,8 @@ export default function AgentModePanel({ isConnected }: AgentModePanelProps) {
       });
 
       if (res && !res.isError && res.content && res.content[0]?.text) {
-        const parsed = JSON.parse(res.content[0].text);
-        if (parsed.session_id) {
+        const parsed = safeParseJSON(res.content[0].text);
+        if (parsed?.session_id) {
           setPromptText("");
           setActiveSessionId(parsed.session_id);
           await loadSessions();

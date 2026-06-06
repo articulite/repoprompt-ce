@@ -118,9 +118,12 @@ class MCPClient {
   }
 
   public async callTool(name: string, args: any = {}): Promise<MCPCallResult> {
+    // Always request raw JSON output from the ToolOutputFormatter
+    // so we get structured data instead of Markdown text.
+    const argsWithRawJSON = { ...args, _rawJSON: true };
     return this.sendRequest("tools/call", {
       name,
-      arguments: args,
+      arguments: argsWithRawJSON,
     });
   }
 

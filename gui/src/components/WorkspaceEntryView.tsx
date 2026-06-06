@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { FolderOpen, History, Sparkles, AlertCircle, ArrowRight, Play, Loader2 } from "lucide-react";
 import { mcpClient } from "../mcpClient";
+import { safeParseJSON } from "../utils";
 
 interface WorkspaceSummary {
   id: string;
@@ -33,8 +34,8 @@ export default function WorkspaceEntryView({ onWorkspaceSelected, isConnected }:
       setError(null);
       const res = await mcpClient.callTool("manage_workspaces", { action: "list" });
       if (res && !res.isError && res.content && res.content[0]?.text) {
-        const parsed = JSON.parse(res.content[0].text);
-        if (parsed.workspaces) {
+        const parsed = safeParseJSON(res.content[0].text);
+        if (parsed?.workspaces) {
           setRecents(parsed.workspaces);
         }
       }

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { mcpClient } from "./mcpClient";
+import { safeParseJSON } from "./utils";
 import WorkspaceEntryView from "./components/WorkspaceEntryView";
 import MainShell from "./components/MainShell";
 import ApprovalOverlays from "./components/ApprovalOverlays";
@@ -42,11 +43,11 @@ function App() {
           // A workspace is loaded! Let's query list to match its name
           const listRes = await mcpClient.callTool("manage_workspaces", { action: "list" });
           if (listRes && !listRes.isError && listRes.content && listRes.content[0]?.text) {
-            const parsed = JSON.parse(listRes.content[0].text);
-            const activeWS = parsed.workspaces?.find((ws: any) => ws.showingWindowIDs?.length > 0);
+            const parsed = safeParseJSON(listRes.content[0].text);
+            const activeWS = parsed?.workspaces?.find((ws: any) => ws.showingWindowIDs?.length > 0);
             if (activeWS) {
               setActiveWorkspace(activeWS.name);
-            } else if (parsed.workspaces?.length > 0) {
+            } else if (parsed?.workspaces?.length > 0) {
               // Fall back to first workspace
               setActiveWorkspace(parsed.workspaces[0].name);
             } else {

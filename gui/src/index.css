@@ -229,7 +229,7 @@ h1, h2, h3, h4, h5, h6 {
   justify-content: center;
   height: 100vh;
   width: 100vw;
-  background-radial: radial-gradient(circle at top right, rgba(99, 102, 241, 0.08), transparent 40%);
+  background: radial-gradient(circle at top right, rgba(99, 102, 241, 0.08), transparent 40%);
   padding: 24px;
 }
 .landing-card {

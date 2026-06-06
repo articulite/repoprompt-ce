@@ -15,7 +15,6 @@ import PackageDescription
         "Infrastructure/MCP/ViewModels",
         "Infrastructure/MCP/Agent",
         "Infrastructure/MCP/WindowRoutingService.swift",
-        "Infrastructure/MCP/WindowTools",
         "Infrastructure/MCP/MCPBootstrapLease.swift",
         "Infrastructure/MCP/MCPRoutingWaiter.swift",
         "Infrastructure/MCP/OracleExportFileWriter.swift",

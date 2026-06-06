@@ -38,18 +38,20 @@ enum ContextBuilderResponseType: String {
         }
     }
 
-    #if !os(Linux)
-        func supportsPresetMode(_ preset: ModelPreset) -> Bool {
-            switch self {
-            case .plan:
-                preset.supportedModes?.plan ?? true
-            case .review:
-                preset.supportedModes?.review ?? true
-            case .question:
-                preset.supportedModes?.chat ?? true
-            case .clarify:
-                false
-            }
+    func supportsPresetMode(_ preset: ModelPreset) -> Bool {
+        #if os(Linux)
+        return true
+        #else
+        switch self {
+        case .plan:
+            preset.supportedModes?.plan ?? true
+        case .review:
+            preset.supportedModes?.review ?? true
+        case .question:
+            preset.supportedModes?.chat ?? true
+        case .clarify:
+            false
         }
-    #endif
+        #endif
+    }
 }

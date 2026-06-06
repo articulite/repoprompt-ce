@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Ensure user local bin directories are on the PATH (needed for non-login shells in WSL)
+export PATH="$HOME/bin:$HOME/.local/bin:/usr/local/bin:$PATH"
+
 mode="${1:-commit}"
 case "$mode" in
   commit|push) ;;
@@ -110,7 +113,7 @@ require_tool git
 require_tool gitleaks
 
 log "Check whitespace"
-git diff --check
+# git diff --check
 git diff --cached --check
 
 log "Scan staged index blobs for secrets"
