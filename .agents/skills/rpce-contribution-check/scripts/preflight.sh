@@ -173,8 +173,13 @@ if range_contains "$files" '^Packages/RepoPromptAgentProviders/'; then
 fi
 
 if range_contains "$files" '^Sources/RepoPrompt/'; then
-  log "Build RepoPrompt product"
-  make dev-swift-build PRODUCT=RepoPrompt
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    log "Build RepoPrompt product"
+    make dev-swift-build PRODUCT=RepoPrompt
+  else
+    log "Build RepoPromptDaemon product"
+    make dev-swift-build PRODUCT=RepoPromptDaemon
+  fi
 fi
 
 if range_contains "$files" '^(Sources/RepoPromptMCP/|Sources/RepoPromptShared/)'; then
