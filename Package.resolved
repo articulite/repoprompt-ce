@@ -1,5 +1,5 @@
 {
-  "originHash" : "fa356e1e027b17c0e5aeac4acc5005e10994c25fd8c39adf6ed843f8788dfd78",
+  "originHash" : "92f38be1aa0317ab2b01379273942146b32446fc51f80bb1bc0013252e7e3144",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -258,7 +258,6 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/provencher/swift-sdk.git",
       "state" : {
-        "branch" : "main",
         "revision" : "cb6a62f7c266ed535792b3e9e6e05dc3f0dac8e4"
       }
     },
@@ -294,7 +293,6 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/jamesrochabrun/SwiftAnthropic",
       "state" : {
-        "branch" : "main",
         "revision" : "b7d030cd7453f314c780f5492385f73d704cbd5d"
       }
     },
@@ -303,7 +301,6 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/provencher/SwiftOpenAI",
       "state" : {
-        "branch" : "Fork2",
         "revision" : "1211782eb337e7968124448a20d9260df1952012"
       }
     },

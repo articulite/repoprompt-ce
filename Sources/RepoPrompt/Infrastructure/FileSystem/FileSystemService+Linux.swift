@@ -5,7 +5,7 @@
     import Foundation
     import RepoPromptShared
 
-    public extension FileSystemService {
+    extension FileSystemService {
         // MARK: - Public watchers API
 
         /// Returns ordered publications whenever changes or watcher progress are detected.

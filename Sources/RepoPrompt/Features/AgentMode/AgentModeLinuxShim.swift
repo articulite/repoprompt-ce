@@ -1216,7 +1216,7 @@
         public init() {}
     }
 
-    public extension PromptViewModel {
+    extension PromptViewModel {
         enum PlanActMode: String, CaseIterable, Codable {
             case chat = "Chat"
             case plan = "Plan"
@@ -1612,7 +1612,7 @@
 
         // MARK: - FileSystemService Testing Shim
 
-        public extension FileSystemService {
+        extension FileSystemService {
             #if DEBUG
                 func isWatchingForChangesForTesting() -> Bool {
                     false
