@@ -124,6 +124,15 @@ run_swiftformat(){
 }
 
 run_swiftlint(){
+    if [[ "$(uname)" == "Linux" && -z "${LD_LIBRARY_PATH:-}" ]]; then
+        for libdir in "$HOME"/.local/share/swiftly/toolchains/*/usr/lib; do
+            if [[ -d "$libdir" && -f "$libdir/libsourcekitdInProc.so" ]]; then
+                export LD_LIBRARY_PATH="$libdir"
+                break
+            fi
+        done
+    fi
+
     ensure_tool swiftlint
     collect_swift_files
 
