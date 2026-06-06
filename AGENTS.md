@@ -6,7 +6,11 @@ Prefer the coordinated developer daemon (`make dev-*`, see "Developer daemon / c
 
 ## Contribution preflight
 
-Before every commit or push, read and run the repository-local `$rpce-contribution-check` skill:
+> [!IMPORTANT]
+> **WSL / Windows Execution Rule:** Never run `git commit`, `git push`, build, test, style check, format, or preflight commands from the Windows host environment or within the Windows host mount directory in WSL (e.g., `/mnt/c/...`).
+> Always execute these operations natively inside the WSL directory (e.g., `~/repoprompt-ce`) using a WSL login shell (`wsl -d Ubuntu bash -l -c "..."`) to ensure the correct tool paths are resolved and to avoid the massive performance overhead of the virtualized NTFS filesystem.
+
+Before every commit or push, read and run the repository-local `$rpce-contribution-check` skill inside your native WSL environment:
 
 ```bash
 .agents/skills/rpce-contribution-check/scripts/preflight.sh commit
