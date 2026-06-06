@@ -9,6 +9,7 @@ import { mcpClient } from "../mcpClient";
 import { safeParseJSON } from "../utils";
 import ChatPanel from "./ChatPanel";
 import AgentModePanel from "./AgentModePanel";
+import SettingsPanel from "./SettingsPanel";
 
 interface TreeNode {
   id: string;
@@ -497,42 +498,11 @@ export default function MainShell({ workspaceName, onExitWorkspace, isConnected 
           {activeTab === 'chat' && <ChatPanel isConnected={isConnected} />}
           {activeTab === 'agent' && <AgentModePanel isConnected={isConnected} />}
           {activeTab === 'settings' && (
-            <div className="settings-panel animate-fade-in">
-              <div className="settings-card glass">
-                <h2>System Settings</h2>
-                <p className="text-secondary">Workspace environment diagnostics and engine configs.</p>
-
-                <div className="settings-group">
-                  <h3>Active Root Paths</h3>
-                  <div className="roots-list">
-                    {roots.map((r, i) => (
-                      <div key={i} className="root-item">
-                        <Code size={14} />
-                        <code>{r}</code>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="settings-group">
-                  <h3>WSL Environment Diagnostic Information</h3>
-                  <div className="diag-grid">
-                    <div className="diag-item">
-                      <span className="label">OS Target</span>
-                      <span className="value">Ubuntu (WSL 2)</span>
-                    </div>
-                    <div className="diag-item">
-                      <span className="label">IPC Bridge Mode</span>
-                      <span className="value">WebSocket JSON-RPC</span>
-                    </div>
-                    <div className="diag-item">
-                      <span className="label">Local Port Bind</span>
-                      <span className="value">0.0.0.0:5173</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <SettingsPanel
+              isConnected={isConnected}
+              roots={roots}
+              onRefreshRoots={loadWorkspaceContext}
+            />
           )}
         </div>
       </main>
