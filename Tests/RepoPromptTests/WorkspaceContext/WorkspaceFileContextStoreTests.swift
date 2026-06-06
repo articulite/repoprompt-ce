@@ -1,3 +1,4 @@
+#if os(macOS)
 import CoreServices
 @testable import RepoPrompt
 import XCTest
@@ -3513,3 +3514,4 @@ private extension String {
         return String(self[startRange.lowerBound ..< endRange.lowerBound])
     }
 }
+#endif

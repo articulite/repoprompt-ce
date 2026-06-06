@@ -1,3 +1,4 @@
+#if os(macOS)
 @testable import RepoPrompt
 import XCTest
 
@@ -210,3 +211,4 @@ final class WindowCloseCoordinatorDecisionTests: XCTestCase {
         )
     }
 }
+#endif

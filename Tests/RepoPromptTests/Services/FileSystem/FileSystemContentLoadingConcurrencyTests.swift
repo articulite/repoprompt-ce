@@ -1,3 +1,4 @@
+#if os(macOS)
 import CoreServices
 @testable import RepoPrompt
 import XCTest
@@ -527,6 +528,10 @@ final class FileSystemContentLoadingConcurrencyTests: XCTestCase {
         FSEventStreamEventFlags(kFSEventStreamEventFlagItemCreated | kFSEventStreamEventFlagItemIsFile)
     }
 
+    private var modifiedFileFlags: FSEventStreamEventFlags {
+        FSEventStreamEventFlags(kFSEventStreamEventFlagItemModified | kFSEventStreamEventFlagItemIsFile)
+    }
+
     private func makeService(root: URL, skipSymlinks: Bool = true) async throws -> FileSystemService {
         try await FileSystemService(
             path: root.path,
@@ -645,3 +650,4 @@ private actor AsyncSignal {
         return marked
     }
 }
+#endif

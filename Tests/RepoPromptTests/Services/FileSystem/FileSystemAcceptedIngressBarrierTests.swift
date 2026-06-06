@@ -1,3 +1,4 @@
+#if os(macOS)
 import Combine
 import CoreServices
 @testable import RepoPrompt
@@ -188,7 +189,7 @@ final class FileSystemAcceptedIngressBarrierTests: XCTestCase {
             await newDrainGate.markStartedAndWaitForRelease()
             while mailbox.takeNextAcceptedPayload() != nil {}
         }
-        await newDrainGate.waitUntilStarted()
+        await oldDrainGate.waitUntilStarted()
         await oldDrainGate.release()
         await Task.yield()
         await Task.yield()
@@ -322,3 +323,4 @@ private actor AsyncCounter {
         count
     }
 }
+#endif

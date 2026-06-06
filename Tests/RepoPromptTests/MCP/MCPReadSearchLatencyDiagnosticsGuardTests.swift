@@ -1,5 +1,9 @@
 #if DEBUG
-    import Combine
+    #if os(macOS)
+        import Combine
+    #elseif os(Linux)
+        import RepoPromptShared
+    #endif
     import MCP
     @testable import RepoPrompt
     import XCTest

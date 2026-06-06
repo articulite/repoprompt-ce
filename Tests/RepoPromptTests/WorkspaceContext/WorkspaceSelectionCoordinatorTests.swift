@@ -1,4 +1,8 @@
-import Combine
+#if canImport(Combine)
+    import Combine
+#else
+    import RepoPromptShared
+#endif
 @testable import RepoPrompt
 import XCTest
 

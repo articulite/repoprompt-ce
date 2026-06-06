@@ -1,3 +1,4 @@
+#if os(macOS)
 import Foundation
 @testable import RepoPrompt
 import Security
@@ -239,3 +240,4 @@ private struct CapturedQuery {
         return nil
     }
 }
+#endif

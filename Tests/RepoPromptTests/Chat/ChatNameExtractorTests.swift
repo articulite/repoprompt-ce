@@ -1,3 +1,4 @@
+#if os(macOS)
 @testable import RepoPrompt
 import XCTest
 
@@ -24,3 +25,4 @@ final class ChatNameExtractorTests: XCTestCase {
         }
     }
 }
+#endif

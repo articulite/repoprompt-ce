@@ -44,6 +44,34 @@ import PackageDescription
         "Features/Workspaces/WorkspaceSwitchingModels.swift"
     ]
 
+    let repoPromptTestExcludes: [String] = [
+        "AgentMode",
+        "AI",
+        "App/AppPlatformUtilityRecoveryTests.swift",
+        "App/WindowCloseCoordinatorDecisionTests.swift",
+        "Chat",
+        "ChatHistoryJSONOnlyTests.swift",
+        "CodeMap",
+        "Diagnostics",
+        "Diffing/DiffChunkTextApplierTests.swift",
+        "MCP",
+        "PresetJSONOnlyPersistenceTests.swift",
+        "SettingsJSONOnlyPersistenceTests.swift",
+        "Prompt",
+        "Security",
+        "Services/FileSystem/FileSystemServiceEventPathMappingTests.swift",
+        "Services/FileSystem/FileSystemAcceptedIngressBarrierTests.swift",
+        "Services/FileSystem/FileSystemContentLoadingConcurrencyTests.swift",
+        "Services/VCS/GitWorktreeContextSummaryTests.swift",
+        "Services/VCS/GitWorktreeMergeEndToEndTests.swift",
+        "WorkspaceContext/ReplayEvidenceHarnessTests.swift",
+        "WorkspaceContext/Search/StoreBackedWorkspaceSearchTests.swift",
+        "WorkspaceContext/WorkspaceFileContextStoreTests.swift",
+        "WorkspaceContext/WorkspaceSelectionCoordinatorTests.swift",
+        "WorkspaceContext/WorkspaceSelectionPersistenceTests.swift",
+        "WorkspaceRootSyncTests.swift"
+    ]
+
     let repoPromptDependencies: [Target.Dependency] = [
         "RepoPromptShared",
         "RepoPromptC", "CSwiftPCRE2", "TreeSitterScannerSupport",
@@ -95,6 +123,7 @@ import PackageDescription
     ]
 #else
     let repoPromptExcludes: [String] = []
+    let repoPromptTestExcludes: [String] = []
 
     let repoPromptDependencies: [Target.Dependency] = [
         "RepoPromptShared",
@@ -168,6 +197,7 @@ var baseTargets: [Target] = [
         name: "RepoPromptTests",
         dependencies: ["RepoPrompt", "RepoPromptShared"],
         path: "Tests/RepoPromptTests",
+        exclude: repoPromptTestExcludes,
         resources: [
             .copy("CodeMap/Fixtures"),
             .copy("CodeMap/Goldens")
