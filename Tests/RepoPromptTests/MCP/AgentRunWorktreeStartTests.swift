@@ -1,4 +1,8 @@
+#if os(macOS)
 import Darwin
+#elseif os(Linux)
+import Glibc
+#endif
 import Foundation
 import MCP
 @testable import RepoPrompt
