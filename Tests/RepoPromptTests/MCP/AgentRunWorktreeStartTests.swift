@@ -1,7 +1,7 @@
 #if os(macOS)
-import Darwin
+    import Darwin
 #elseif os(Linux)
-import Glibc
+    import Glibc
 #endif
 import Foundation
 import MCP
