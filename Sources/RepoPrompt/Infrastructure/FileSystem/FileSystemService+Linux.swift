@@ -9,7 +9,7 @@
         // MARK: - Public watchers API
 
         /// Returns ordered publications whenever changes or watcher progress are detected.
-        internal func publisherForChanges() -> AnyPublisher<FileSystemDeltaPublication, Never> {
+        func publisherForChanges() -> AnyPublisher<FileSystemDeltaPublication, Never> {
             changePublisher.eraseToAnyPublisher()
         }
 
@@ -71,7 +71,7 @@
             await catalogRegularFileEligibility(relativePath: rawRelativePath).isEligible
         }
 
-        internal func catalogFolderIsDiscoverable(relativePath rawRelativePath: String) async -> Bool {
+        func catalogFolderIsDiscoverable(relativePath rawRelativePath: String) async -> Bool {
             let relativePath = (rawRelativePath as NSString).standardizingPath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
             guard !relativePath.isEmpty, relativePath != "..", !relativePath.hasPrefix("../") else { return false }
             let absolutePath = fullPath(forRelativePath: relativePath)
@@ -129,7 +129,7 @@
             return isIgnored ? .ineligible(.ignored) : .eligible
         }
 
-        internal func registerExplicitlyManagedRegularFile(relativePath rawRelativePath: String) async -> CatalogRegularFileEligibility {
+        func registerExplicitlyManagedRegularFile(relativePath rawRelativePath: String) async -> CatalogRegularFileEligibility {
             let eligibility = await catalogRegularFileEligibility(relativePath: rawRelativePath)
             switch eligibility {
             case .eligible, .ineligible(.ignored):
@@ -142,7 +142,7 @@
             return eligibility
         }
 
-        internal func pathContainsSymlinkComponent(relativePath: String) -> Bool {
+        func pathContainsSymlinkComponent(relativePath: String) -> Bool {
             var current = rootURL
             for component in relativePath.split(separator: "/") {
                 current.appendPathComponent(String(component))
@@ -153,7 +153,7 @@
             return false
         }
 
-        internal nonisolated func captureAcceptedWatcherWatermark() -> FileSystemWatcherIngressMailbox.Watermark {
+        nonisolated func captureAcceptedWatcherWatermark() -> FileSystemWatcherIngressMailbox.Watermark {
             watcherIngressMailbox.captureAcceptedWatermark()
         }
 
@@ -161,7 +161,7 @@
             _ = await flushPendingEventsNow(throughAcceptedWatcherWatermark: captureAcceptedWatcherWatermark())
         }
 
-        internal func flushPendingEventsNow(
+        func flushPendingEventsNow(
             throughAcceptedWatcherWatermark target: FileSystemWatcherIngressMailbox.Watermark
         ) async -> UInt64 {
             // No-op on Linux
