@@ -179,7 +179,7 @@ import PackageDescription
     ]
 #endif
 
-// Base targets list common to all platforms
+/// Base targets list common to all platforms
 var baseTargets: [Target] = [
     repoPromptTarget,
     .executableTarget(

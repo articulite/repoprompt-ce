@@ -69,7 +69,7 @@ import Foundation
     }
 
     @propertyWrapper
-    public struct Published<Value>: Sendable where Value: Sendable {
+    public struct Published<Value: Sendable>: Sendable {
         private final class Storage: @unchecked Sendable {
             var value: Value
             let subject = PassthroughSubject<Value, Never>()
@@ -98,8 +98,14 @@ import Foundation
                 self.subject = subject
             }
 
-            public func removeDuplicates() -> Publisher { self }
-            public func receive(on queue: DispatchQueue) -> Publisher { self }
+            public func removeDuplicates() -> Publisher {
+                self
+            }
+
+            public func receive(on queue: DispatchQueue) -> Publisher {
+                self
+            }
+
             public func sink(receiveValue: @escaping @Sendable (Value) -> Void) -> AnyCancellable {
                 subject.eraseToAnyPublisher().sink(receiveValue: receiveValue)
             }
@@ -139,7 +145,9 @@ import Foundation
             set { setter(newValue) }
         }
 
-        public var projectedValue: Binding<Value> { self }
+        public var projectedValue: Binding<Value> {
+            self
+        }
 
         public static func constant(_ value: Value) -> Binding<Value> {
             Binding(get: { value }, set: { _ in })

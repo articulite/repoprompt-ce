@@ -140,20 +140,20 @@ final class CodeBlockTextView: NSTextView {
         cachedTextTablePresence = nil
     }
 
-    /// Synchronously measures the wrapped-text height for the given width.
-    /// This is called from `AttributedTextView.sizeThatFits` during SwiftUI
-    /// layout — no async invalidation, no deferred dispatch.
-    ///
-    /// **Caching**: If the content hasn't changed and the width is the same
-    /// (within 0.5pt), the previously measured height is returned without
-    /// touching the text container or layout manager. This is critical
-    /// because `sizeThatFits` is called on every layout pass (including
-    /// during scrolling), and calling `ensureLayout` each time creates
-    /// AppKit side-effects that can corrupt the parent ScrollView's state.
-    ///
-    /// **Important**: the text container's `widthTracksTextView` must be
-    /// `false` so that this method is the sole authority for the container
-    /// width.
+    // Synchronously measures the wrapped-text height for the given width.
+    // This is called from `AttributedTextView.sizeThatFits` during SwiftUI
+    // layout — no async invalidation, no deferred dispatch.
+    //
+    // **Caching**: If the content hasn't changed and the width is the same
+    // (within 0.5pt), the previously measured height is returned without
+    // touching the text container or layout manager. This is critical
+    // because `sizeThatFits` is called on every layout pass (including
+    // during scrolling), and calling `ensureLayout` each time creates
+    // AppKit side-effects that can corrupt the parent ScrollView's state.
+    //
+    // **Important**: the text container's `widthTracksTextView` must be
+    // `false` so that this method is the sole authority for the container
+    // width.
 
     // MARK: Frame-driven container sync --------------------------------
 

@@ -6,9 +6,9 @@ import { safeParseJSON } from "../utils";
 interface WorkspaceSummary {
   id: string;
   name: string;
-  allRepoPaths: string[];
-  showingWindowIDs: number[];
-  isHidden: boolean;
+  allRepoPaths?: string[];
+  showingWindowIDs?: number[];
+  isHidden?: boolean;
 }
 
 interface WorkspaceEntryViewProps {
@@ -36,7 +36,19 @@ export default function WorkspaceEntryView({ onWorkspaceSelected, isConnected }:
       if (res && !res.isError && res.content && res.content[0]?.text) {
         const parsed = safeParseJSON(res.content[0].text);
         if (parsed?.workspaces) {
-          setRecents(parsed.workspaces);
+          const normalized: WorkspaceSummary[] = parsed.workspaces.map((ws: any) => {
+            if (typeof ws === "string") {
+              return {
+                id: ws,
+                name: ws,
+                allRepoPaths: [],
+                showingWindowIDs: [],
+                isHidden: false
+              };
+            }
+            return ws;
+          });
+          setRecents(normalized);
         }
       }
     } catch (err: any) {
@@ -200,8 +212,8 @@ export default function WorkspaceEntryView({ onWorkspaceSelected, isConnected }:
                   >
                     <div className="recent-info">
                       <span className="recent-name">{ws.name}</span>
-                      <span className="recent-path" title={ws.allRepoPaths.join(", ")}>
-                        {ws.allRepoPaths[0] || "No folders"}
+                      <span className="recent-path" title={ws.allRepoPaths?.join(", ") || ""}>
+                        {ws.allRepoPaths?.[0] || "No folders"}
                       </span>
                     </div>
                     <Play className="play-icon" size={14} />

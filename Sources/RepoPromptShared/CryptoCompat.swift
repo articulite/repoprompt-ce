@@ -11,8 +11,13 @@
             self.bytes = bytes
         }
 
-        public var startIndex: Int { bytes.startIndex }
-        public var endIndex: Int { bytes.endIndex }
+        public var startIndex: Int {
+            bytes.startIndex
+        }
+
+        public var endIndex: Int {
+            bytes.endIndex
+        }
 
         public subscript(position: Int) -> UInt8 {
             bytes[position]

@@ -5,15 +5,41 @@
     import Glibc
 
     public enum Darwin {
-        @inline(__always) public static func close(_ fd: Int32) -> Int32 { Glibc.close(fd) }
-        @inline(__always) public static func read(_ fd: Int32, _ buf: UnsafeMutableRawPointer?, _ nbyte: Int) -> Int { Glibc.read(fd, buf, nbyte) }
-        @inline(__always) public static func write(_ fd: Int32, _ buf: UnsafeRawPointer?, _ nbyte: Int) -> Int { Glibc.write(fd, buf, nbyte) }
-        @inline(__always) public static func connect(_ fd: Int32, _ addr: UnsafePointer<sockaddr>?, _ len: socklen_t) -> Int32 { Glibc.connect(fd, addr, len) }
-        @inline(__always) public static func recv(_ fd: Int32, _ buf: UnsafeMutableRawPointer?, _ len: Int, _ flags: Int32) -> Int { Glibc.recv(fd, buf, len, flags) }
-        @inline(__always) public static func poll(_ fds: UnsafeMutablePointer<pollfd>?, _ nfds: nfds_t, _ timeout: Int32) -> Int32 { Glibc.poll(fds, nfds, timeout) }
-        @inline(__always) public static func socketpair(_ domain: Int32, _ type: Int32, _ protocol: Int32, _ sv: UnsafeMutablePointer<Int32>?) -> Int32 { Glibc.socketpair(domain, type, `protocol`, sv) }
-        public static var stdout: UnsafeMutablePointer<FILE> { Glibc.stdout }
-        public static var stderr: UnsafeMutablePointer<FILE> { Glibc.stderr }
+        @inline(__always) public static func close(_ fd: Int32) -> Int32 {
+            Glibc.close(fd)
+        }
+
+        @inline(__always) public static func read(_ fd: Int32, _ buf: UnsafeMutableRawPointer?, _ nbyte: Int) -> Int {
+            Glibc.read(fd, buf, nbyte)
+        }
+
+        @inline(__always) public static func write(_ fd: Int32, _ buf: UnsafeRawPointer?, _ nbyte: Int) -> Int {
+            Glibc.write(fd, buf, nbyte)
+        }
+
+        @inline(__always) public static func connect(_ fd: Int32, _ addr: UnsafePointer<sockaddr>?, _ len: socklen_t) -> Int32 {
+            Glibc.connect(fd, addr, len)
+        }
+
+        @inline(__always) public static func recv(_ fd: Int32, _ buf: UnsafeMutableRawPointer?, _ len: Int, _ flags: Int32) -> Int {
+            Glibc.recv(fd, buf, len, flags)
+        }
+
+        @inline(__always) public static func poll(_ fds: UnsafeMutablePointer<pollfd>?, _ nfds: nfds_t, _ timeout: Int32) -> Int32 {
+            Glibc.poll(fds, nfds, timeout)
+        }
+
+        @inline(__always) public static func socketpair(_ domain: Int32, _ type: Int32, _ protocol: Int32, _ sv: UnsafeMutablePointer<Int32>?) -> Int32 {
+            Glibc.socketpair(domain, type, `protocol`, sv)
+        }
+
+        public static var stdout: UnsafeMutablePointer<FILE> {
+            Glibc.stdout
+        }
+
+        public static var stderr: UnsafeMutablePointer<FILE> {
+            Glibc.stderr
+        }
     }
 
     public let SOCK_STREAM = Int32(Glibc.SOCK_STREAM.rawValue)

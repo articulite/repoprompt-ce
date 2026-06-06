@@ -44,15 +44,18 @@ function App() {
           const listRes = await mcpClient.callTool("manage_workspaces", { action: "list" });
           if (listRes && !listRes.isError && listRes.content && listRes.content[0]?.text) {
             const parsed = safeParseJSON(listRes.content[0].text);
-            const activeWS = parsed?.workspaces?.find((ws: any) => ws.showingWindowIDs?.length > 0);
-            if (activeWS) {
-              setActiveWorkspace(activeWS.name);
-            } else if (parsed?.workspaces?.length > 0) {
-              // Fall back to first workspace
-              setActiveWorkspace(parsed.workspaces[0].name);
-            } else {
-              setActiveWorkspace("Active Workspace");
+            const workspaces = parsed?.workspaces || [];
+            let activeName = "Active Workspace";
+            if (workspaces.length > 0) {
+              const found = workspaces.find((ws: any) => typeof ws === "object" && ws.showingWindowIDs?.length > 0);
+              if (found) {
+                activeName = found.name;
+              } else {
+                const first = workspaces[0];
+                activeName = typeof first === "string" ? first : (first.name || "Active Workspace");
+              }
             }
+            setActiveWorkspace(activeName);
           }
         }
       }

@@ -1214,13 +1214,13 @@ enum CodeMapExtractor {
 
     // MARK: - Multi-root file tree with progressive fallbacks
 
-    /// Builds an ASCII directory tree for multiple root folders with progressive fallbacks.
-    /// Depth limiting semantics (aligned with `get_file_tree` max_depth spec):
-    /// - `maxDepth == 0`: show **root + its immediate children** only (one level under root).
-    /// - `maxDepth == 1`: show root, children, and grandchildren (two levels under root).
-    /// - `maxDepth == 2`: show up to great‑grandchildren, and so on.
-    /// Selected files are always visible (unbounded) via a selected-only pass when we reach the cap.
-    /// When deeper content is hidden, we append an ellipsis summarizer (e.g. `... (N items)`).
+    // Builds an ASCII directory tree for multiple root folders with progressive fallbacks.
+    // Depth limiting semantics (aligned with `get_file_tree` max_depth spec):
+    // - `maxDepth == 0`: show **root + its immediate children** only (one level under root).
+    // - `maxDepth == 1`: show root, children, and grandchildren (two levels under root).
+    // - `maxDepth == 2`: show up to great‑grandchildren, and so on.
+    // Selected files are always visible (unbounded) via a selected-only pass when we reach the cap.
+    // When deeper content is hidden, we append an ellipsis summarizer (e.g. `... (N items)`).
     #if !os(Linux)
         static func generateFileTreeForRoots(
             rootFolders: [FolderViewModel],
@@ -2555,11 +2555,10 @@ enum CodeMapExtractor {
                 maxDepth: maxDepth
             )
 
-            let result = generateFileTreeForRoots(
+            return generateFileTreeForRoots(
                 roots: [rootFolder],
                 context: &context
             )
-            return result
         }
 
         static func generateFileTreeStartingAtPath(

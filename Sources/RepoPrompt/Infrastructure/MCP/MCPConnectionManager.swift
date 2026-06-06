@@ -3954,10 +3954,10 @@ actor ServerNetworkManager {
         emitDashboardUpdate()
     }
 
-    /// Reads the cached TCP client name from all CLI instance cache files.
-    /// (Legacy TCP transport has been removed; this helper now returns nil.)
-    /// - Parameter remotePort: The remote port from the incoming connection for precise matching
-    /// - Returns: Always nil now that TCP transport and cache files are deprecated
+    // Reads the cached TCP client name from all CLI instance cache files.
+    // (Legacy TCP transport has been removed; this helper now returns nil.)
+    // - Parameter remotePort: The remote port from the incoming connection for precise matching
+    // - Returns: Always nil now that TCP transport and cache files are deprecated
 
     // MARK: - Identity Failure Recording & Escalation
 

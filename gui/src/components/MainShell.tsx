@@ -44,7 +44,13 @@ export default function MainShell({ workspaceName, onExitWorkspace, isConnected 
         mode: treeMode
       });
       if (treeRes && !treeRes.isError && treeRes.content && treeRes.content[0]?.text) {
-        setFileTree(treeRes.content[0].text);
+        const text = treeRes.content[0].text;
+        const parsed = safeParseJSON(text);
+        if (parsed && parsed.tree) {
+          setFileTree(parsed.tree);
+        } else {
+          setFileTree(text);
+        }
       } else {
         setFileTree("Failed to fetch directory tree.");
       }
@@ -84,7 +90,19 @@ export default function MainShell({ workspaceName, onExitWorkspace, isConnected 
       if (res && !res.isError && res.content && res.content[0]?.text) {
         const parsed = safeParseJSON(res.content[0].text);
         if (parsed?.workspaces) {
-          setWorkspaces(parsed.workspaces);
+          const normalized = parsed.workspaces.map((ws: any) => {
+            if (typeof ws === "string") {
+              return {
+                id: ws,
+                name: ws,
+                allRepoPaths: [],
+                showingWindowIDs: [],
+                isHidden: false
+              };
+            }
+            return ws;
+          });
+          setWorkspaces(normalized);
         }
       }
     } catch (err) {

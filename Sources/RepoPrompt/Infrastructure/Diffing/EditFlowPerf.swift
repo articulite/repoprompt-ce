@@ -12,7 +12,10 @@ import Foundation
     struct OSSignpostIntervalState {}
     struct OSSignposter {
         init(subsystem: String, category: String) {}
-        func beginInterval(_ name: StaticString) -> OSSignpostIntervalState? { nil }
+        func beginInterval(_ name: StaticString) -> OSSignpostIntervalState? {
+            nil
+        }
+
         func endInterval(_ name: StaticString, _ state: OSSignpostIntervalState) {}
         func emitEvent(_ name: StaticString) {}
     }

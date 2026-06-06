@@ -29,7 +29,7 @@ import Foundation
 enum LanguageTypeExtractor {
     // MARK: - Swift Patterns
 
-    /// Now allows optional `<...>` generics right after function name.
+    // Now allows optional `<...>` generics right after function name.
 
     // MARK: - Swift Patterns
 

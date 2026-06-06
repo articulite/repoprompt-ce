@@ -40,18 +40,18 @@ enum ContextBuilderResponseType: String {
 
     func supportsPresetMode(_ preset: ModelPreset) -> Bool {
         #if os(Linux)
-        return true
+            return true
         #else
-        switch self {
-        case .plan:
-            preset.supportedModes?.plan ?? true
-        case .review:
-            preset.supportedModes?.review ?? true
-        case .question:
-            preset.supportedModes?.chat ?? true
-        case .clarify:
-            false
-        }
+            switch self {
+            case .plan:
+                preset.supportedModes?.plan ?? true
+            case .review:
+                preset.supportedModes?.review ?? true
+            case .question:
+                preset.supportedModes?.chat ?? true
+            case .clarify:
+                false
+            }
         #endif
     }
 }

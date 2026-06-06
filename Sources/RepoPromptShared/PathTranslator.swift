@@ -16,7 +16,8 @@ public enum PathTranslator {
         // Match WSL UNC paths: e.g. //wsl.localhost/Ubuntu/home/user or //wsl$/Ubuntu/home/user
         let uncPattern = "^//wsl(?:\\.localhost|\\$)/[^/]+/(.*)$"
         if let uncRegex = try? NSRegularExpression(pattern: uncPattern, options: []),
-           let match = uncRegex.firstMatch(in: normalized, options: [], range: NSRange(location: 0, length: (normalized as NSString).length)) {
+           let match = uncRegex.firstMatch(in: normalized, options: [], range: NSRange(location: 0, length: (normalized as NSString).length))
+        {
             let nsStr = normalized as NSString
             let remaining = nsStr.substring(with: match.range(at: 1))
             return "/" + remaining
