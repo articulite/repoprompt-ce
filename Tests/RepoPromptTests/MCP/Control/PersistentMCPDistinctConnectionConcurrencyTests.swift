@@ -1,4 +1,10 @@
-import Darwin
+#if os(macOS)
+    import Darwin
+#elseif os(Linux)
+    import Glibc
+
+    typealias Darwin = Glibc
+#endif
 import Foundation
 import MCP
 @testable import RepoPrompt
