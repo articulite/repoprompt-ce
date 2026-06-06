@@ -1,5 +1,8 @@
-import CoreServices
+#if canImport(CoreServices)
+    import CoreServices
+#endif
 import Foundation
+import RepoPromptShared
 
 /// Owns deep-copied FSEvent callback payloads synchronously before actor entry.
 ///

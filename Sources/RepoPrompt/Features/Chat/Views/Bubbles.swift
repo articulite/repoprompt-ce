@@ -97,6 +97,7 @@ private struct FileSelectionIndicator: View {
     }
 
     // ────────────────────────────────────────────────
+
     // MARK: – Pop-over content
 
     /// ────────────────────────────────────────────────
@@ -189,6 +190,7 @@ private struct FileSelectionIndicator: View {
         }
 
         // ─────────────────────────────────────────────────────────────
+
         // MARK: – Nested row view
 
         /// ─────────────────────────────────────────────────────────────
@@ -443,7 +445,6 @@ struct MessageBubble: View {
 
     private var assistantMessage: some View {
         VStack(alignment: .leading, spacing: 0) { // Remove spacing between bubble and footer
-
             // main content - no background to avoid re-renders
             MessageBubbleContent(
                 message: message,

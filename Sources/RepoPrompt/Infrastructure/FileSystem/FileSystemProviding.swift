@@ -40,8 +40,13 @@ public protocol FileSystemProviding {
 
 extension FileManager: FileSystemProviding {
     public func moveItemToTrash(at url: URL) throws -> URL? {
-        var resultingItemURL: NSURL?
-        try trashItem(at: url, resultingItemURL: &resultingItemURL)
-        return resultingItemURL as URL?
+        #if os(Linux)
+            try removeItem(at: url)
+            return nil
+        #else
+            var resultingItemURL: NSURL?
+            try trashItem(at: url, resultingItemURL: &resultingItemURL)
+            return resultingItemURL as URL?
+        #endif
     }
 }

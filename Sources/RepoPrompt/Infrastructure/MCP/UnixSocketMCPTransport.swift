@@ -7,10 +7,9 @@
 //
 
 #if os(Linux)
-import Glibc
-typealias Darwin = Glibc
+    import Glibc
 #else
-import Darwin
+    import Darwin
 #endif
 import Foundation
 import Logging
@@ -368,8 +367,8 @@ public actor UnixSocketMCPTransport: Transport {
 
         // Disable SIGPIPE on this socket
         #if !os(Linux)
-        var noSigPipe: Int32 = 1
-        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
+            var noSigPipe: Int32 = 1
+            setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
         #endif
 
         // Set non-blocking mode for non-blocking writes
@@ -430,8 +429,8 @@ public actor UnixSocketMCPTransport: Transport {
 
             // Disable SIGPIPE on this socket.
             #if !os(Linux)
-            var noSigPipe: Int32 = 1
-            setsockopt(socketFD, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
+                var noSigPipe: Int32 = 1
+                setsockopt(socketFD, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
             #endif
 
             #if DEBUG
@@ -517,7 +516,7 @@ public actor UnixSocketMCPTransport: Transport {
                 throw error
             }
 
-            let written = remaining.withUnsafeBytes { buf in
+            let written = remaining.withUnsafeBytes { (buf: UnsafeRawBufferPointer) -> Int in
                 Darwin.write(fd, buf.baseAddress!, buf.count)
             }
 

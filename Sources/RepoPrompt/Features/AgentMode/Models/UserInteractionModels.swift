@@ -1,16 +1,34 @@
-import CryptoKit
+#if canImport(CryptoKit)
+    import CryptoKit
+#endif
 import Foundation
 
 private enum StableUserInteractionIdentity {
     static func uuid(from seed: String) -> UUID {
-        let digest = Array(SHA256.hash(data: Data(seed.utf8)))
-        let bytes: uuid_t = (
-            digest[0], digest[1], digest[2], digest[3],
-            digest[4], digest[5], digest[6], digest[7],
-            digest[8], digest[9], digest[10], digest[11],
-            digest[12], digest[13], digest[14], digest[15]
-        )
-        return UUID(uuid: bytes)
+        #if canImport(CryptoKit)
+            let digest = Array(CryptoKit.SHA256.hash(data: Data(seed.utf8)))
+            let bytes: uuid_t = (
+                digest[0], digest[1], digest[2], digest[3],
+                digest[4], digest[5], digest[6], digest[7],
+                digest[8], digest[9], digest[10], digest[11],
+                digest[12], digest[13], digest[14], digest[15]
+            )
+            return UUID(uuid: bytes)
+        #else
+            var h1: UInt64 = 14_695_981_039_346_656_037
+            var h2: UInt64 = 14_695_981_039_346_656_037
+            for byte in seed.utf8 {
+                h1 = (h1 ^ UInt64(byte)).multipliedReportingOverflow(by: 1_099_511_628_211).partialValue
+                h2 = (h2 ^ UInt64(byte &+ 1)).multipliedReportingOverflow(by: 1_099_511_628_211).partialValue
+            }
+            let bytes: uuid_t = (
+                UInt8((h1 >> 56) & 0xFF), UInt8((h1 >> 48) & 0xFF), UInt8((h1 >> 40) & 0xFF), UInt8((h1 >> 32) & 0xFF),
+                UInt8((h1 >> 24) & 0xFF), UInt8((h1 >> 16) & 0xFF), UInt8((h1 >> 8) & 0xFF), UInt8(h1 & 0xFF),
+                UInt8((h2 >> 56) & 0xFF), UInt8((h2 >> 48) & 0xFF), UInt8((h2 >> 40) & 0xFF), UInt8((h2 >> 32) & 0xFF),
+                UInt8((h2 >> 24) & 0xFF), UInt8((h2 >> 16) & 0xFF), UInt8((h2 >> 8) & 0xFF), UInt8(h2 & 0xFF)
+            )
+            return UUID(uuid: bytes)
+        #endif
     }
 }
 

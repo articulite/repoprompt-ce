@@ -22,22 +22,26 @@ protocol SecureKeyValueStorageBackend: AnyObject {
 
 enum SecureKeyValueStorageFactory {
     private static let cachedBackend: SecureKeyValueStorageBackend = {
-        #if DEBUG
-            let signingInfo = RuntimeCodeSigningDetector.currentProcessSigningInfo()
-            let marker = DebugSecureStorageRuntimePolicy.currentDebugStorageMarker()
-            switch DebugSecureStorageRuntimePolicy.backendKind(for: signingInfo, debugStorageMarker: marker) {
-            case .keychain:
-                return KeychainService.shared
-            case .alternateInMemory:
-                return EphemeralSecureKeyValueStore.shared
-            }
+        #if !canImport(Security)
+            return EphemeralSecureKeyValueStore.shared
         #else
-            switch PersistentKeychainRuntimePolicy.backendKind() {
-            case .localSelfSigned:
-                return KeychainService.localSelfSignedShared
-            case .canonical:
-                return KeychainService.shared
-            }
+            #if DEBUG
+                let signingInfo = RuntimeCodeSigningDetector.currentProcessSigningInfo()
+                let marker = DebugSecureStorageRuntimePolicy.currentDebugStorageMarker()
+                switch DebugSecureStorageRuntimePolicy.backendKind(for: signingInfo, debugStorageMarker: marker) {
+                case .keychain:
+                    return KeychainService.shared
+                case .alternateInMemory:
+                    return EphemeralSecureKeyValueStore.shared
+                }
+            #else
+                switch PersistentKeychainRuntimePolicy.backendKind() {
+                case .localSelfSigned:
+                    return KeychainService.localSelfSignedShared
+                case .canonical:
+                    return KeychainService.shared
+                }
+            #endif
         #endif
     }()
 

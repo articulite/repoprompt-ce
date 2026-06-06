@@ -12,6 +12,7 @@ import Foundation
 import SwiftUI
 
 // ──────────────────────────────────
+
 // MARK: - Bubble
 
 /// ──────────────────────────────────
@@ -41,12 +42,14 @@ struct TooltipBubble: View {
 }
 
 // ──────────────────────────────────
+
 // MARK: - Placement
 
 /// ──────────────────────────────────
 enum TooltipPlacement { case top, bottom, left, right, topLeft, topRight, bottomLeft, bottomRight }
 
 // ──────────────────────────────────
+
 // MARK: - Modifier
 
 /// ──────────────────────────────────
@@ -233,6 +236,7 @@ private struct HoverTooltipModifier: ViewModifier {
 }
 
 // ──────────────────────────────────
+
 // MARK: - Public helper
 
 /// ──────────────────────────────────

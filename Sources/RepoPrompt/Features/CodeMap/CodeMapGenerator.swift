@@ -11,6 +11,13 @@ import Foundation
 #endif
 import SwiftTreeSitter
 
+#if !canImport(Darwin)
+    typealias CFAbsoluteTime = Double
+    func CFAbsoluteTimeGetCurrent() -> Double {
+        Date().timeIntervalSinceReferenceDate
+    }
+#endif
+
 struct CodeMapGenerator {
     static let debug = false
 
@@ -370,7 +377,7 @@ struct CodeMapGenerator {
         var processedVarLines = Set<Int>()
         var processedMultiVarKeys = Set<String>()
         var processedFunctionLines = Set<Int>() // Track function lines to avoid duplicate arrow functions
-        var currentEnum: EnumInfo? = nil
+        var currentEnum: EnumInfo?
         var seenImportExport = Set<String>()
 
         // ------------------------------------------------------------------
@@ -455,7 +462,7 @@ struct CodeMapGenerator {
             }
             guard endIdx > 0 else { return nil }
 
-            var best: (range: NSRange, name: String)? = nil
+            var best: (range: NSRange, name: String)?
             for i in stride(from: endIdx - 1, through: 0, by: -1) {
                 let decl = pythonEnumDeclsByRange[i]
                 if rangeContains(decl.range, range), best == nil || isBetterRange(decl.range, than: best!.range) {
@@ -568,7 +575,7 @@ struct CodeMapGenerator {
                 }
                 guard endIdx > 0 else { return nil }
 
-                var best: ClassBoundary? = nil
+                var best: ClassBoundary?
                 for i in stride(from: endIdx - 1, through: 0, by: -1) {
                     let b = classBoundariesByRange[i]
                     guard let bRange = b.range else { continue }
@@ -589,7 +596,7 @@ struct CodeMapGenerator {
                 }
                 guard endIdx > 0 else { return nil }
 
-                var best: InterfaceBoundary? = nil
+                var best: InterfaceBoundary?
                 for i in stride(from: endIdx - 1, through: 0, by: -1) {
                     let b = interfaceBoundaryListByRange[i]
                     guard let bRange = b.range else { continue }
@@ -621,7 +628,7 @@ struct CodeMapGenerator {
             }
             guard endIdx > 0 else { return nil }
 
-            var best: RustImplBoundary? = nil
+            var best: RustImplBoundary?
             for i in stride(from: endIdx - 1, through: 0, by: -1) {
                 let b = rustImplBoundariesByRange[i]
                 if rangeContains(b.range, range), best == nil || isBetterRange(b.range, than: best!.range) {
@@ -661,7 +668,7 @@ struct CodeMapGenerator {
         // ------------------------------------------------------------------
         // 2.5) Swift-specific: Build type boundaries with full ranges (via strategy)
         // ------------------------------------------------------------------
-        var swiftContext: SwiftCodeMapStrategy.Context? = nil
+        var swiftContext: SwiftCodeMapStrategy.Context?
 
         if supportedLanguage == .swift {
             if debugLogging {
@@ -693,7 +700,7 @@ struct CodeMapGenerator {
         // 2.6) TS/TSX-specific: Build container boundaries (via strategy)
         //      BUG FIX #1: Only for TS/TSX, NOT for JS
         // ------------------------------------------------------------------
-        var tsContext: TypeScriptCodeMapStrategy.Context? = nil
+        var tsContext: TypeScriptCodeMapStrategy.Context?
         var usesTSRangeContainment = false
 
         if isTSLike {
@@ -1078,7 +1085,7 @@ struct CodeMapGenerator {
                 }
 
                 // Skip for TS/TSX if using range containment - strategy handles these
-                if isTSLike && usesTSRangeContainment && cap.name == "method" {
+                if isTSLike, usesTSRangeContainment, cap.name == "method" {
                     recordFallbackFunctionAttribution(.skipped, since: attributionStart)
                     recordCaptureAttribution(.function, since: attributionStart)
                     continue
@@ -1168,7 +1175,7 @@ struct CodeMapGenerator {
                     }
                     recordFallbackFunctionAttribution(.nameExtraction, since: nameExtractionStart)
 
-                    var returnType: String? = nil
+                    var returnType: String?
                     var params: [ParameterInfo] = []
 
                     let lightweightMatch: [String: String]?
@@ -1328,7 +1335,7 @@ struct CodeMapGenerator {
                     activePerfStats?.fallbackFunctionHeavyweightCount += 1
                 }
                 var fnName = decl
-                var returnType: String? = nil
+                var returnType: String?
                 var paramTypes: [String] = []
 
                 let lteParseStart = perfEnabled ? CFAbsoluteTimeGetCurrent() : 0
@@ -1661,7 +1668,7 @@ struct CodeMapGenerator {
                     } else {
                         variableName = simpleName ?? fullDecl
                     }
-                    var typeName: String? = nil
+                    var typeName: String?
                     if isTSLike, let match = extractionMemo.matchVariableLine(fullDecl, language: supportedLanguage, stats: activePerfStats),
                        let vType = match["type"], !vType.isEmpty
                     {
@@ -1780,7 +1787,7 @@ struct CodeMapGenerator {
                     processedVarLines.insert(lnRange.location)
                 }
 
-                var matchedName: String? = nil
+                var matchedName: String?
                 if let match = extractionMemo.matchVariableLine(fullDecl, language: supportedLanguage, stats: activePerfStats) {
                     matchedName = match["name"]
                     if let vType = match["type"] {
@@ -2459,7 +2466,7 @@ struct CodeMapGenerator {
     private static func findTopLevelBrace(in string: String) -> String.Index? {
         var parenDepth = 0
         var bracketDepth = 0
-        var inString: Character? = nil
+        var inString: Character?
         var escaped = false
         var inBlockComment = false
         var index = string.startIndex
@@ -2538,7 +2545,7 @@ struct CodeMapGenerator {
     private static func parenState(in string: String) -> (depth: Int, sawParen: Bool) {
         var parenDepth = 0
         var sawParen = false
-        var inString: Character? = nil
+        var inString: Character?
         var escaped = false
         var inBlockComment = false
         var index = string.startIndex

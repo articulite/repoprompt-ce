@@ -644,7 +644,7 @@ struct BenchmarkTaskGenerator {
         lines.append("    }")
         lines.append("    return total;")
         lines.append("}")
-        if !existing.isEmpty && !existing.hasSuffix("\n") {
+        if !existing.isEmpty, !existing.hasSuffix("\n") {
             existing.append("\n")
         }
         existing.append(lines.joined(separator: "\n"))

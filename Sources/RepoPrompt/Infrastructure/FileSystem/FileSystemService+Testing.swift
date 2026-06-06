@@ -1,6 +1,11 @@
-import CoreFoundation
-import CoreServices
+#if canImport(CoreFoundation)
+    import CoreFoundation
+#endif
+#if canImport(CoreServices)
+    import CoreServices
+#endif
 import Foundation
+import RepoPromptShared
 
 #if DEBUG
     extension FileSystemService {

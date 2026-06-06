@@ -1,4 +1,7 @@
 import Foundation
+#if os(Linux)
+import CSwiftPCRE2
+#endif
 
 public enum PCRE2LimitKind: Sendable, Equatable {
 	case match

@@ -931,7 +931,13 @@ public struct ClaudeSDKNDJSONTranslator {
             guard double.isFinite else { return nil }
             return Int(exactly: double)
         case let number as NSNumber:
-            if CFGetTypeID(number) == CFBooleanGetTypeID() { return nil }
+            #if os(macOS)
+                let isBool = CFGetTypeID(number) == CFBooleanGetTypeID()
+            #else
+                let objcTypeStr = String(cString: number.objCType)
+                let isBool = objcTypeStr == "c" || objcTypeStr == "B"
+            #endif
+            if isBool { return nil }
             if let exactInteger = Int(number.stringValue) {
                 return exactInteger
             }

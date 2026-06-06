@@ -1,4 +1,7 @@
 import Foundation
+#if os(Linux)
+    import RepoPromptC
+#endif
 
 // Wildmatch bit-flags (duplicated from wildmatch.h)
 private let WM_NOESCAPE: UInt32 = 0x01

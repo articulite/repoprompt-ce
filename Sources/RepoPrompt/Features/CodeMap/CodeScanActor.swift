@@ -1,4 +1,6 @@
-import Cocoa
+#if canImport(Cocoa)
+    import Cocoa
+#endif
 import Foundation
 
 #if DEBUG
@@ -227,6 +229,7 @@ actor CodeScanActor {
     private var rebuildLookupByRoot: [String: [String: CodeMapCacheFileEntry]] = [:]
 
     // -------------------------------------
+
     // MARK: - NEW: Track cache processing
 
     /// -------------------------------------
@@ -234,6 +237,7 @@ actor CodeScanActor {
     private var cacheProcessingCount = 0 // NEW
 
     // -------------------------------------
+
     // MARK: - Nested Data Structures
 
     /// -------------------------------------
@@ -349,6 +353,7 @@ actor CodeScanActor {
     }
 
     // -------------------------------------------------------
+
     // MARK: 1) Subscribe to batched scanning results
 
     /// -------------------------------------------------------
@@ -374,6 +379,7 @@ actor CodeScanActor {
     }
 
     // -------------------------------------------------------
+
     // MARK: 2) Subscribe to progress
 
     /// -------------------------------------------------------
@@ -575,6 +581,7 @@ actor CodeScanActor {
     }
 
     // -------------------------------------------------------
+
     // MARK: 3) Cancel scans & unload for a given root
 
     /// -------------------------------------------------------
@@ -613,6 +620,7 @@ actor CodeScanActor {
     }
 
     // -------------------------------------------------------
+
     // MARK: 3b) Cancel scans & unload for multiple roots
 
     /// -------------------------------------------------------
@@ -655,6 +663,7 @@ actor CodeScanActor {
     }
 
     // -------------------------------------------------------
+
     // MARK: 4) Check cache (asynchronously) and handle result
 
     /// -------------------------------------------------------
@@ -731,6 +740,7 @@ actor CodeScanActor {
     }
 
     // -------------------------------------------------------
+
     // MARK: - Helper: remove older queued request for the same file
 
     /// -------------------------------------------------------
@@ -761,6 +771,7 @@ actor CodeScanActor {
     }
 
     // -------------------------------------------------------
+
     // MARK: 5) Request scans (single or batch) - ASYNC versions
 
     /// -------------------------------------------------------
@@ -1022,6 +1033,7 @@ actor CodeScanActor {
     }
 
     // -------------------------------------------------------
+
     // MARK: 6) Non-isolated wrappers for backward-compatible calls
 
     /// -------------------------------------------------------
@@ -1046,6 +1058,7 @@ actor CodeScanActor {
     }
 
     // -------------------------------------------------------
+
     // MARK: 7) Scheduling & finishing scans
 
     /// -------------------------------------------------------
@@ -1176,6 +1189,7 @@ actor CodeScanActor {
     }
 
     // -------------------------------------------------------
+
     // MARK: 8) Cancel everything
 
     /// -------------------------------------------------------
@@ -1240,6 +1254,7 @@ actor CodeScanActor {
     }
 
     // -------------------------------------------------------
+
     // MARK: 9) Progress logic (2-second debounce, no early flush)
 
     /// -------------------------------------------------------
@@ -1291,6 +1306,7 @@ actor CodeScanActor {
     }
 
     // -------------------------------------------------------
+
     // MARK: 10) Batched result logic
 
     // -------------------------------------------------------
@@ -1333,6 +1349,7 @@ actor CodeScanActor {
     }
 
     // -------------------------------------------------------
+
     // MARK: 11) Final cleanup
 
     /// -------------------------------------------------------
@@ -1359,6 +1376,7 @@ actor CodeScanActor {
     }
 
     // -------------------------------------------------------
+
     // MARK: 12) Cache rebuild helpers
 
     /// -------------------------------------------------------

@@ -2,7 +2,9 @@ import Foundation
 import JSONSchema
 import MCP
 import Ontology
-import SwiftUI
+#if canImport(SwiftUI)
+    import SwiftUI
+#endif
 
 #if DEBUG
     private func routingLog(_ message: @autoclosure () -> String) {
@@ -316,6 +318,7 @@ final class WindowRoutingService: Service {
     }
 
     // ---------------------------------------------------------------------
+
     // MARK: Stored references
 
     // ---------------------------------------------------------------------
@@ -331,6 +334,7 @@ final class WindowRoutingService: Service {
     private var windowCountObserver: NSObjectProtocol?
 
     // ---------------------------------------------------------------------
+
     // MARK: Init & registration
 
     /// ---------------------------------------------------------------------
@@ -424,6 +428,7 @@ final class WindowRoutingService: Service {
     }
 
     // ---------------------------------------------------------------------
+
     // MARK: Cleanup
 
     /// ---------------------------------------------------------------------
@@ -438,6 +443,7 @@ final class WindowRoutingService: Service {
     }
 
     // ---------------------------------------------------------------------
+
     // MARK: Workspace Resolution Helpers
 
     // ---------------------------------------------------------------------
@@ -1945,6 +1951,7 @@ final class WindowRoutingService: Service {
     }
 
     // ---------------------------------------------------------------------
+
     // MARK: Private Helpers
 
     /// ---------------------------------------------------------------------
@@ -3099,6 +3106,7 @@ final class WindowRoutingService: Service {
     }
 
     // ---------------------------------------------------------------------
+
     // MARK: Tools
 
     /// ---------------------------------------------------------------------

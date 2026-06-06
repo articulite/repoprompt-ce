@@ -5912,7 +5912,7 @@ final class CodexAgentModeCoordinator: AgentModeRunInteractionStateObserving {
             var updated = session.items[index]
             let isAgentControlTool = AgentTranscriptIO.isAgentControlToolName(updated.toolName)
             let isRepoPromptTool = MCPIntegrationHelper.isRepoPromptToolNameAfterNormalization(updated.toolName)
-            if isRepoPromptTool && !isAgentControlTool {
+            if isRepoPromptTool, !isAgentControlTool {
                 continue
             }
             let agentControlFallback = isAgentControlTool

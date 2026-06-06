@@ -5,13 +5,23 @@
 //  Created by Eric Provencher on 2025-06-20.
 //
 
-import AppKit
-import Darwin
+#if canImport(AppKit)
+    import AppKit
+#endif
+#if canImport(Darwin)
+    import Darwin
+#elseif os(Linux)
+    import Glibc
+#endif
 import Foundation
 import Logging
-import OSLog
 import RepoPromptShared
-import SwiftUI
+#if canImport(SwiftUI)
+    import SwiftUI
+#endif
+#if canImport(Combine)
+    import Combine
+#endif
 
 #if DEBUG
     private var serverControllerDebugLoggingEnabled = false
@@ -29,9 +39,9 @@ private let log = Logger(label: "com.repoprompt.mcp.servercontroller")
 ///  SwiftUI facing controller – own instance lives at the app level
 /// ---------------------------------------------------------------------
 /// Controller visible from SwiftUI
-final actor ServerController: ObservableObject {
+public final actor ServerController {
     /// ──────────  Singleton  ──────────
-    static let shared = ServerController()
+    public static let shared = ServerController()
 
     // –––––  Internal state (no longer @Published since we're not on @MainActor)  –––––
     private var serverStatus: String = "Starting…"
@@ -182,21 +192,23 @@ final actor ServerController: ObservableObject {
                 return approved
         }
 
-        // Register wake observer if not already registered
-        guard wakeObserver == nil else { return }
-        let networkMgr = networkManager
-        let observer = await MainActor.run {
-            NSWorkspace.shared.notificationCenter.addObserver(
-                forName: NSWorkspace.didWakeNotification,
-                object: nil,
-                queue: nil
-            ) { _ in
-                Task {
-                    await networkMgr.ensureBootstrapHealthy(force: true)
+        #if canImport(AppKit)
+            // Register wake observer if not already registered
+            guard wakeObserver == nil else { return }
+            let networkMgr = networkManager
+            let observer = await MainActor.run {
+                NSWorkspace.shared.notificationCenter.addObserver(
+                    forName: NSWorkspace.didWakeNotification,
+                    object: nil,
+                    queue: nil
+                ) { _ in
+                    Task {
+                        await networkMgr.ensureBootstrapHealthy(force: true)
+                    }
                 }
             }
-        }
-        wakeObserver = observer
+            wakeObserver = observer
+        #endif
     }
 
     deinit {
@@ -274,10 +286,17 @@ final actor ServerController: ObservableObject {
     }
 
     private nonisolated static func executablePath(forPID pid: Int) -> String? {
-        var buffer = [CChar](repeating: 0, count: 4096)
-        let result = proc_pidpath(pid_t(pid), &buffer, UInt32(buffer.count))
-        guard result > 0 else { return nil }
-        return String(cString: buffer)
+        #if canImport(Darwin)
+            var buffer = [CChar](repeating: 0, count: 4096)
+            let result = proc_pidpath(pid_t(pid), &buffer, UInt32(buffer.count))
+            guard result > 0 else { return nil }
+            return String(cString: buffer)
+        #elseif os(Linux)
+            let path = "/proc/\(pid)/exe"
+            return try? FileManager.default.destinationOfSymbolicLink(atPath: path)
+        #else
+            return nil
+        #endif
     }
 
     private func addAlwaysAllowed(clientID: String) {
@@ -378,7 +397,7 @@ final actor ServerController: ObservableObject {
     // MARK: – public API –
 
     /// Request to start (or re-enable) the MCP listener.
-    func startServer() async {
+    public func startServer() async {
         if await networkManager.isRunning() {
             await networkManager.setEnabled(true) // expose tools only
             await networkManager.ensureBootstrapHealthy(force: true)
@@ -438,17 +457,21 @@ final actor ServerController: ObservableObject {
     }
 
     private func beginPowerActivity() {
-        guard powerActivity == nil else { return }
-        powerActivity = ProcessInfo.processInfo.beginActivity(
-            options: [.userInitiated, .latencyCritical, .idleSystemSleepDisabled],
-            reason: "Maintain realtime MCP server connection"
-        )
+        #if canImport(AppKit)
+            guard powerActivity == nil else { return }
+            powerActivity = ProcessInfo.processInfo.beginActivity(
+                options: [.userInitiated, .latencyCritical, .idleSystemSleepDisabled],
+                reason: "Maintain realtime MCP server connection"
+            )
+        #endif
     }
 
     private func endPowerActivity() {
-        guard let activity = powerActivity else { return }
-        ProcessInfo.processInfo.endActivity(activity)
-        powerActivity = nil
+        #if canImport(AppKit)
+            guard let activity = powerActivity else { return }
+            ProcessInfo.processInfo.endActivity(activity)
+            powerActivity = nil
+        #endif
     }
 
     /// Request approval through the callback system instead of showing NSAlert directly.
@@ -583,3 +606,7 @@ final actor ServerController: ObservableObject {
         await activateNextQueuedApprovalIfNeeded()
     }
 }
+
+#if canImport(Combine)
+    extension ServerController: ObservableObject {}
+#endif

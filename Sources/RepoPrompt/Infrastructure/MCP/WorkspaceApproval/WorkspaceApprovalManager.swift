@@ -5,8 +5,14 @@
 //  Created by RepoPrompt – Workspace MCP approval integration
 //
 
-import AppKit
-import Combine
+#if canImport(AppKit)
+    import AppKit
+#endif
+#if canImport(Combine)
+    import Combine
+#else
+    import RepoPromptShared
+#endif
 import Foundation
 
 /// Manages approval requests for workspace operations triggered by MCP clients.
@@ -80,9 +86,11 @@ public final class WorkspaceApprovalManager: ObservableObject {
             // Bring window to front and request attention
             bringWindowToFront(windowID: request.windowID)
 
-            if !NSApp.isActive {
-                NSApp.requestUserAttention(.criticalRequest)
-            }
+            #if canImport(AppKit)
+                if !NSApp.isActive {
+                    NSApp.requestUserAttention(.criticalRequest)
+                }
+            #endif
         }
     }
 
@@ -95,7 +103,7 @@ public final class WorkspaceApprovalManager: ObservableObject {
         }
 
         // If always-allow was selected, update the policy
-        if allow && alwaysAllow {
+        if allow, alwaysAllow {
             addAutoApproval(clientID: request.clientID, operation: request.operation)
         }
 
@@ -263,20 +271,22 @@ public final class WorkspaceApprovalManager: ObservableObject {
 
     private func bringWindowToFront(windowID: Int?) {
         // Try to find and activate the specific window, or just activate the app
-        if let windowID,
-           let windowState = WindowStatesManager.shared.allWindows.first(where: { $0.windowID == windowID }),
-           let nsWindow = windowState.nsWindow
-        {
-            if !NSApp.isActive {
-                NSApp.activate(ignoringOtherApps: true)
+        #if canImport(AppKit)
+            if let windowID,
+               let windowState = WindowStatesManager.shared.allWindows.first(where: { $0.windowID == windowID }),
+               let nsWindow = windowState.nsWindow
+            {
+                if !NSApp.isActive {
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+                nsWindow.makeKeyAndOrderFront(nil)
+            } else {
+                // Just activate the app
+                if !NSApp.isActive {
+                    NSApp.activate(ignoringOtherApps: true)
+                }
             }
-            nsWindow.makeKeyAndOrderFront(nil)
-        } else {
-            // Just activate the app
-            if !NSApp.isActive {
-                NSApp.activate(ignoringOtherApps: true)
-            }
-        }
+        #endif
     }
 }
 

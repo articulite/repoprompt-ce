@@ -1,4 +1,6 @@
-import AppKit
+#if canImport(AppKit)
+    import AppKit
+#endif
 import Foundation
 
 /// Claude-specific integration configuration helpers.

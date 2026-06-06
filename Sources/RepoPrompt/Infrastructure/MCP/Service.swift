@@ -7,7 +7,9 @@
 
 import Foundation
 import MCP
-import SwiftUI
+#if canImport(SwiftUI)
+    import SwiftUI
+#endif
 
 @preconcurrency
 protocol Service {

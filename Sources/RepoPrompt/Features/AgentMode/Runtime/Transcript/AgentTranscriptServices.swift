@@ -1,4 +1,6 @@
-import CryptoKit
+#if canImport(CryptoKit)
+    import CryptoKit
+#endif
 import Foundation
 
 #if DEBUG

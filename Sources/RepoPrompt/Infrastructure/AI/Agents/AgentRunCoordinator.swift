@@ -1,5 +1,7 @@
 import Foundation
-import OSLog
+#if canImport(OSLog)
+    import OSLog
+#endif
 
 /// Identifies the type of headless agent run.
 enum AgentRunType {
@@ -26,7 +28,9 @@ struct AgentRunSpec {
 final class AgentRunCoordinator {
     static let shared = AgentRunCoordinator()
 
-    private let log = Logger(subsystem: "com.repoprompt.agents", category: "AgentRunCoordinator")
+    #if canImport(OSLog)
+        private let log = Logger(subsystem: "com.repoprompt.agents", category: "AgentRunCoordinator")
+    #endif
 
     /// Default timeout for waiting for connection routing (10 seconds)
     private static let defaultRoutingTimeoutMs = 10000
@@ -155,11 +159,19 @@ final class AgentRunCoordinator {
         let gateKey = gateID ?? runID
         let released = await HeadlessAgentConnectionGate.completeIfActive(gateKey)
 
-        if routed {
-            log.info("Gate release after routing event: runID=\(runID.uuidString) gateID=\(gateKey.uuidString) released=\(released)")
-        } else {
-            log.info("Gate release after timeout/failure/cancel: runID=\(runID.uuidString) gateID=\(gateKey.uuidString) released=\(released)")
-        }
+        #if canImport(OSLog)
+            if routed {
+                log.info("Gate release after routing event: runID=\(runID.uuidString) gateID=\(gateKey.uuidString) released=\(released)")
+            } else {
+                log.info("Gate release after timeout/failure/cancel: runID=\(runID.uuidString) gateID=\(gateKey.uuidString) released=\(released)")
+            }
+        #else
+            if routed {
+                print("[AgentRunCoordinator] Gate release after routing event: runID=\(runID.uuidString) gateID=\(gateKey.uuidString) released=\(released)")
+            } else {
+                print("[AgentRunCoordinator] Gate release after timeout/failure/cancel: runID=\(runID.uuidString) gateID=\(gateKey.uuidString) released=\(released)")
+            }
+        #endif
 
         // Clean up waiter state to prevent memory leaks
         await MCPRoutingWaiter.cleanup(runID: runID)

@@ -132,7 +132,7 @@ struct BenchmarkVerifier: BenchmarkVerifying {
         let lineCount = meta["rawLineCount"]?.intValue ?? 0
         let charOver = max(0, charCount - 10000)
         let lineOver = max(0, lineCount - 200)
-        if charOver == 0 && lineOver == 0 { return result }
+        if charOver == 0, lineOver == 0 { return result }
         let charPenalty = 1.0 / (1.0 + Double(charOver) / 5000.0)
         let linePenalty = 1.0 / (1.0 + Double(lineOver) / 100.0)
         let penalty = min(charPenalty, linePenalty)

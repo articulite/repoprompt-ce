@@ -5,8 +5,15 @@
 //  Created by Eric Provencher on 2024-07-25.
 //
 
-import Darwin
+#if canImport(Darwin)
+    import Darwin
+#elseif canImport(Glibc)
+    import Glibc
+#endif
 import Foundation
+#if os(Linux)
+    import RepoPromptC
+#endif
 
 public extension String {
     internal static func truncateModelName(_ text: String, maxLength: Int = 40) -> String {
@@ -830,24 +837,26 @@ public extension String {
         }
     }
 
-    internal func oldDecodingHTMLEntities() -> String {
-        guard let data = data(using: .utf8) else {
-            return self
-        }
+    #if !os(Linux)
+        func oldDecodingHTMLEntities() -> String {
+            guard let data = data(using: .utf8) else {
+                return self
+            }
 
-        guard let decoded = try? NSAttributedString(
-            data: data,
-            options: [
-                .documentType: NSAttributedString.DocumentType.html,
-                .characterEncoding: String.Encoding.utf8.rawValue
-            ],
-            documentAttributes: nil
-        ) else {
-            return self
-        }
+            guard let decoded = try? NSAttributedString(
+                data: data,
+                options: [
+                    .documentType: NSAttributedString.DocumentType.html,
+                    .characterEncoding: String.Encoding.utf8.rawValue
+                ],
+                documentAttributes: nil
+            ) else {
+                return self
+            }
 
-        return decoded.string
-    }
+            return decoded.string
+        }
+    #endif
 
     /*
      // ------------------------------------------------------------------

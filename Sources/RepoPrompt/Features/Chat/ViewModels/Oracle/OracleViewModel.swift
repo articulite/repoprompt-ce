@@ -2315,7 +2315,7 @@ class OracleViewModel: ObservableObject {
          """)
          		*/
 
-        if !force && !shouldSkipChangeCheck && nothingChanged {
+        if !force, !shouldSkipChangeCheck, nothingChanged {
             oracleViewModelDebugLog("autosaveChatHistory -> skipped (no meaningful changes)")
             return
         }
@@ -3361,6 +3361,7 @@ class OracleViewModel: ObservableObject {
     }
 
     // ------------------------------------------------------------------
+
     // MARK: – File-selection helpers (used by file-list popover)
 
     /// ------------------------------------------------------------------

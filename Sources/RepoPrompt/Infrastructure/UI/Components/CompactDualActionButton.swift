@@ -130,13 +130,13 @@ struct CompactDualActionButton: View {
 
     private func backgroundForPart(isHovering: Bool, isPressed: Bool) -> some View {
         if !isEnabled {
-            return disabledBackground.eraseToAnyView()
+            disabledBackground.eraseToAnyView()
         } else if isPressed {
-            return pressedBackground.eraseToAnyView()
+            pressedBackground.eraseToAnyView()
         } else if isHovering {
-            return hoverBackground.eraseToAnyView()
+            hoverBackground.eraseToAnyView()
         } else {
-            return normalBackground.eraseToAnyView()
+            normalBackground.eraseToAnyView()
         }
     }
 

@@ -7,8 +7,7 @@ import ServiceLifecycle
 import SystemPackage
 
 #if os(Linux)
-import Glibc
-typealias Darwin = Glibc
+    import Glibc
 #endif
 
 // MARK: - Version Constants
@@ -119,37 +118,37 @@ enum CLIEventLogger {
         let parentPID = getppid()
         debugLog("detectClientName: parentPID=\(parentPID)")
         #if os(Linux)
-        let exeSymlink = "/proc/\(parentPID)/exe"
-        if let execPath = try? FileManager.default.destinationOfSymbolicLink(atPath: exeSymlink) {
+            let exeSymlink = "/proc/\(parentPID)/exe"
+            if let execPath = try? FileManager.default.destinationOfSymbolicLink(atPath: exeSymlink) {
+                let result = URL(fileURLWithPath: execPath).lastPathComponent
+                debugLog("detectClientName: execPath='\(execPath)' result='\(result)'")
+                return result
+            }
+            debugLog("detectClientName: failed to resolve symlink for parentPID=\(parentPID)")
+            return nil
+        #else
+            var name = [CChar](repeating: 0, count: 1024)
+            var size = name.count
+
+            var mib = [CTL_KERN, KERN_PROCARGS2, parentPID]
+            guard sysctl(&mib, 3, &name, &size, nil, 0) == 0 else {
+                debugLog("detectClientName: sysctl failed for parentPID=\(parentPID), errno=\(errno)")
+                return nil
+            }
+
+            let pathStart = name.dropFirst(4).firstIndex(where: { $0 != 0 }) ?? 4
+            let execPath = name.withUnsafeBufferPointer { buffer in
+                String(cString: buffer.baseAddress!.advanced(by: pathStart))
+            }
+            guard !execPath.isEmpty else {
+                debugLog("detectClientName: execPath empty for parentPID=\(parentPID)")
+                return nil
+            }
+
+            // Return raw executable name - let MCP protocol name be authoritative
             let result = URL(fileURLWithPath: execPath).lastPathComponent
             debugLog("detectClientName: execPath='\(execPath)' result='\(result)'")
             return result
-        }
-        debugLog("detectClientName: failed to resolve symlink for parentPID=\(parentPID)")
-        return nil
-        #else
-        var name = [CChar](repeating: 0, count: 1024)
-        var size = name.count
-
-        var mib = [CTL_KERN, KERN_PROCARGS2, parentPID]
-        guard sysctl(&mib, 3, &name, &size, nil, 0) == 0 else {
-            debugLog("detectClientName: sysctl failed for parentPID=\(parentPID), errno=\(errno)")
-            return nil
-        }
-
-        let pathStart = name.dropFirst(4).firstIndex(where: { $0 != 0 }) ?? 4
-        let execPath = name.withUnsafeBufferPointer { buffer in
-            String(cString: buffer.baseAddress!.advanced(by: pathStart))
-        }
-        guard !execPath.isEmpty else {
-            debugLog("detectClientName: execPath empty for parentPID=\(parentPID)")
-            return nil
-        }
-
-        // Return raw executable name - let MCP protocol name be authoritative
-        let result = URL(fileURLWithPath: execPath).lastPathComponent
-        debugLog("detectClientName: execPath='\(execPath)' result='\(result)'")
-        return result
         #endif
     }
 
@@ -557,8 +556,8 @@ actor BootstrapSocketProxy {
 
         // Disable SIGPIPE
         #if !os(Linux)
-        var noSigPipe: Int32 = 1
-        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
+            var noSigPipe: Int32 = 1
+            setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
         #endif
 
         // Set up socket address
@@ -1015,11 +1014,11 @@ private extension BootstrapSocketProxy {
                 throw SocketProxyError.cancelled
             }
             if Date() > deadline {
-                shutdown(socketFD, SHUT_RDWR)
+                shutdown(socketFD, Int32(SHUT_RDWR))
                 throw SocketProxyError.connectionTimeout
             }
 
-            let written = data.withUnsafeBytes { buf in
+            let written = data.withUnsafeBytes { (buf: UnsafeRawBufferPointer) -> Int in
                 let ptr = buf.baseAddress!.advanced(by: totalWritten)
                 return Darwin.write(socketFD, ptr, data.count - totalWritten)
             }
@@ -1035,7 +1034,7 @@ private extension BootstrapSocketProxy {
                 if err == EAGAIN || err == EWOULDBLOCK {
                     let remainingMs = Int32(deadline.timeIntervalSinceNow * 1000)
                     if remainingMs <= 0 {
-                        shutdown(socketFD, SHUT_RDWR)
+                        shutdown(socketFD, Int32(SHUT_RDWR))
                         throw SocketProxyError.connectionTimeout
                     }
                     var pfd = pollfd(fd: socketFD, events: Int16(POLLOUT), revents: 0)
@@ -1081,9 +1080,11 @@ actor MCPService: Service {
     private let identityCache = ClientIdentityCache()
 
     // Kill signal watcher state
-    private var killSignalFD: Int32 = -1
-    private var killSignalSource: DispatchSourceFileSystemObject?
-    private var killSignalContinuation: CheckedContinuation<CLIKillSignal.SignalContent?, Never>?
+    #if !os(Linux)
+        private var killSignalFD: Int32 = -1
+        private var killSignalSource: DispatchSourceProtocol?
+        private var killSignalContinuation: CheckedContinuation<CLIKillSignal.SignalContent?, Never>?
+    #endif
 
     init() {
         // No TCP/Bonjour transport – bootstrap socket only
@@ -1091,66 +1092,68 @@ actor MCPService: Service {
 
     // MARK: - Kill Signal Watcher
 
-    /// Sets up a DispatchSource watcher on the kill signals directory.
-    /// When the app writes a kill signal file for this session, the watcher triggers.
-    private func setupKillSignalWatcher() {
-        let signalsDir = CLIKillSignal.signalsDirectory
-        let fm = FileManager.default
+    #if !os(Linux)
+        /// Sets up a DispatchSource watcher on the kill signals directory.
+        /// When the app writes a kill signal file for this session, the watcher triggers.
+        private func setupKillSignalWatcher() {
+            let signalsDir = CLIKillSignal.signalsDirectory
+            let fm = FileManager.default
 
-        // Ensure directory exists
-        try? fm.createDirectory(at: signalsDir, withIntermediateDirectories: true)
+            // Ensure directory exists
+            try? fm.createDirectory(at: signalsDir, withIntermediateDirectories: true)
 
-        let fd = open(signalsDir.path, O_EVTONLY)
-        guard fd >= 0 else {
-            log.warning("Failed to open kill signals directory for watching")
-            return
-        }
-        do {
-            try POSIXDescriptorSupport.setCloseOnExec(fd)
-        } catch {
-            close(fd)
-            log.warning("Failed to configure kill signals directory watcher descriptor: \(error)")
-            return
-        }
-        killSignalFD = fd
+            let fd = open(signalsDir.path, O_EVTONLY)
+            guard fd >= 0 else {
+                log.warning("Failed to open kill signals directory for watching")
+                return
+            }
+            do {
+                try POSIXDescriptorSupport.setCloseOnExec(fd)
+            } catch {
+                close(fd)
+                log.warning("Failed to configure kill signals directory watcher descriptor: \(error)")
+                return
+            }
+            killSignalFD = fd
 
-        let source = DispatchSource.makeFileSystemObjectSource(
-            fileDescriptor: fd,
-            eventMask: [.write, .rename],
-            queue: .global(qos: .utility)
-        )
+            let source = DispatchSource.makeFileSystemObjectSource(
+                fileDescriptor: fd,
+                eventMask: [.write, .rename],
+                queue: DispatchQueue.global(qos: .utility)
+            )
 
-        source.setEventHandler { [weak self, sessionToken] in
-            // Check if our kill signal file exists
-            if let signal = CLIKillSignal.readKillSignal(forSessionToken: sessionToken) {
-                Task { [weak self] in
-                    await self?.handleKillSignal(signal)
+            source.setEventHandler { [weak self, sessionToken] in
+                // Check if our kill signal file exists
+                if let signal = CLIKillSignal.readKillSignal(forSessionToken: sessionToken) {
+                    Task { [weak self] in
+                        await self?.handleKillSignal(signal)
+                    }
                 }
             }
+
+            source.setCancelHandler {
+                close(fd)
+            }
+
+            killSignalSource = source
+            source.resume()
+            log.debug("Kill signal watcher set up for session \(sessionToken.prefix(8))...")
         }
 
-        source.setCancelHandler {
-            close(fd)
+        /// Called when a kill signal is detected.
+        private func handleKillSignal(_ signal: CLIKillSignal.SignalContent) {
+            log.notice("Kill signal received: \(signal.reason.rawValue)")
+
+            // Clean up the signal file
+            CLIKillSignal.removeKillSignal(forSessionToken: sessionToken)
+
+            // Resume the continuation if waiting
+            if let cont = killSignalContinuation {
+                killSignalContinuation = nil
+                cont.resume(returning: signal)
+            }
         }
-
-        killSignalSource = source
-        source.resume()
-        log.debug("Kill signal watcher set up for session \(sessionToken.prefix(8))...")
-    }
-
-    /// Called when a kill signal is detected.
-    private func handleKillSignal(_ signal: CLIKillSignal.SignalContent) {
-        log.notice("Kill signal received: \(signal.reason.rawValue)")
-
-        // Clean up the signal file
-        CLIKillSignal.removeKillSignal(forSessionToken: sessionToken)
-
-        // Resume the continuation if waiting
-        if let cont = killSignalContinuation {
-            killSignalContinuation = nil
-            cont.resume(returning: signal)
-        }
-    }
+    #endif
 
     /// Waits for a kill signal. Returns immediately if one is already pending.
     /// Returns nil if the task is cancelled before a signal arrives.
@@ -1164,38 +1167,53 @@ actor MCPService: Service {
         // Check if already cancelled before waiting
         if Task.isCancelled { return nil }
 
-        return await withTaskCancellationHandler {
-            await withCheckedContinuation { cont in
-                killSignalContinuation = cont
+        #if os(Linux)
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                if let signal = CLIKillSignal.readKillSignal(forSessionToken: sessionToken) {
+                    CLIKillSignal.removeKillSignal(forSessionToken: sessionToken)
+                    return signal
+                }
             }
-        } onCancel: {
-            // Resume with nil on cancellation - must be done from actor context
-            Task { [weak self] in
-                await self?.cancelKillSignalWait()
+            return nil
+        #else
+            return await withTaskCancellationHandler {
+                await withCheckedContinuation { cont in
+                    killSignalContinuation = cont
+                }
+            } onCancel: {
+                // Resume with nil on cancellation - must be done from actor context
+                Task { [weak self] in
+                    await self?.cancelKillSignalWait()
+                }
             }
-        }
+        #endif
     }
 
-    /// Resumes the kill signal continuation with nil when cancelled.
-    private func cancelKillSignalWait() {
-        if let cont = killSignalContinuation {
+    #if !os(Linux)
+        /// Resumes the kill signal continuation with nil when cancelled.
+        private func cancelKillSignalWait() {
+            if let cont = killSignalContinuation {
+                killSignalContinuation = nil
+                cont.resume(returning: nil)
+            }
+        }
+
+        private func teardownKillSignalWatcher() {
+            let source = killSignalSource
+            killSignalSource = nil
+            killSignalFD = -1
+            source?.cancel()
             killSignalContinuation = nil
-            cont.resume(returning: nil)
         }
-    }
-
-    private func teardownKillSignalWatcher() {
-        let source = killSignalSource
-        killSignalSource = nil
-        killSignalFD = -1
-        source?.cancel()
-        killSignalContinuation = nil
-    }
+    #endif
 
     func run() async throws {
-        // Set up kill signal watcher before starting transport
-        setupKillSignalWatcher()
-        defer { teardownKillSignalWatcher() }
+        #if !os(Linux)
+            // Set up kill signal watcher before starting transport
+            setupKillSignalWatcher()
+            defer { teardownKillSignalWatcher() }
+        #endif
 
         // Capture initial parent PID for orphan detection
         let initialPPID = getppid()
@@ -2341,7 +2359,7 @@ func launchRepoPromptApp() {
         .deletingLastPathComponent() // Contents
         .deletingLastPathComponent() // RepoPrompt.app
 
-    let targetPath: String = if appURL.pathExtension == "app" && FileManager.default.fileExists(atPath: appURL.path) {
+    let targetPath: String = if appURL.pathExtension == "app", FileManager.default.fileExists(atPath: appURL.path) {
         appURL.path
     } else {
         "-b \(repoPromptCEBundleIdentifier)"

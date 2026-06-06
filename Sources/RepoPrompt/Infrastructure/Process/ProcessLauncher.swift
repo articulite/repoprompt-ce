@@ -1,6 +1,15 @@
-import Darwin
+#if canImport(Darwin)
+    import Darwin
+#elseif canImport(Glibc)
+    import Glibc
+#endif
 import Foundation
 import RepoPromptShared
+
+#if os(Linux)
+    @_silgen_name("posix_spawn_file_actions_addchdir_np")
+    func posix_spawn_file_actions_addchdir_np(_ file_actions: UnsafeMutablePointer<posix_spawn_file_actions_t>, _ path: UnsafePointer<CChar>) -> Int32
+#endif
 
 struct SpawnedProcess: @unchecked Sendable {
     let pid: pid_t
@@ -138,7 +147,11 @@ enum ProcessLauncher {
 
         _ = FDWriteSupport.configureNoSigPipe(fd: stdinPipe[1])
 
-        var fileActions: posix_spawn_file_actions_t? = nil
+        #if os(Linux)
+            var fileActions = posix_spawn_file_actions_t()
+        #else
+            var fileActions: posix_spawn_file_actions_t?
+        #endif
         let fileActionsInitResult: Int32 = if case let .fileActions(errno)? = initializationFailure {
             errno
         } else {
@@ -168,6 +181,8 @@ enum ProcessLauncher {
             let result = workingDirectory.withCString { pointer -> Int32 in
                 #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
                     return posix_spawn_file_actions_addchdir_np(&fileActions, pointer)
+                #elseif os(Linux)
+                    return posix_spawn_file_actions_addchdir_np(&fileActions, pointer)
                 #else
                     return 0
                 #endif
@@ -180,7 +195,11 @@ enum ProcessLauncher {
             }
         }
 
-        var attributes: posix_spawnattr_t? = nil
+        #if os(Linux)
+            var attributes = posix_spawnattr_t()
+        #else
+            var attributes: posix_spawnattr_t?
+        #endif
         let attributesInitResult: Int32 = if case let .attributes(errno)? = initializationFailure {
             errno
         } else {

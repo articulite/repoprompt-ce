@@ -1,10 +1,10 @@
 import Foundation
-#if DEBUG || EDIT_FLOW_PERF
+#if (DEBUG || EDIT_FLOW_PERF) && canImport(os)
     import os
 #endif
 
 enum RepoFileReplayPerf {
-    #if DEBUG || EDIT_FLOW_PERF
+    #if (DEBUG || EDIT_FLOW_PERF) && canImport(os)
         typealias State = OSSignpostIntervalState
         static let signposter = OSSignposter(subsystem: "com.repoprompt.workspace", category: "file-replay")
         static var isEnabled: Bool {

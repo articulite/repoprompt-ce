@@ -319,7 +319,7 @@ actor GitStatusActor {
         }
 
         // For background polls, skip work if git is disabled
-        if inclusionMode == .none && trigger == .backgroundPoll {
+        if inclusionMode == .none, trigger == .backgroundPoll {
             return latestSnapshot
         }
 

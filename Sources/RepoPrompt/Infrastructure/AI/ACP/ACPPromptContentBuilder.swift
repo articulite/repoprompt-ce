@@ -1,5 +1,7 @@
 import Foundation
-import UniformTypeIdentifiers
+#if canImport(UniformTypeIdentifiers)
+    import UniformTypeIdentifiers
+#endif
 
 enum ACPPromptContentBuilder {
     enum Error: LocalizedError, Equatable {
@@ -67,13 +69,31 @@ enum ACPPromptContentBuilder {
     private static func mimeType(forPathExtension pathExtension: String?, fallbackTitle: String?) -> String {
         let candidates = [pathExtension, fallbackTitle.flatMap { URL(fileURLWithPath: $0).pathExtension }]
         for candidate in candidates {
-            let ext = candidate?.trimmingCharacters(in: CharacterSet(charactersIn: ".").union(.whitespacesAndNewlines)) ?? ""
+            let ext = candidate?.trimmingCharacters(in: CharacterSet(charactersIn: ".").union(.whitespacesAndNewlines)).lowercased() ?? ""
             guard !ext.isEmpty else { continue }
-            if let mimeType = UTType(filenameExtension: ext)?.preferredMIMEType,
-               mimeType.lowercased().hasPrefix("image/")
-            {
-                return mimeType
+            switch ext {
+            case "png":
+                return "image/png"
+            case "jpg", "jpeg":
+                return "image/jpeg"
+            case "gif":
+                return "image/gif"
+            case "webp":
+                return "image/webp"
+            case "heic":
+                return "image/heic"
+            case "heif":
+                return "image/heif"
+            default:
+                break
             }
+            #if canImport(UniformTypeIdentifiers)
+                if let mimeType = UTType(filenameExtension: ext)?.preferredMIMEType,
+                   mimeType.lowercased().hasPrefix("image/")
+                {
+                    return mimeType
+                }
+            #endif
         }
         return "image/png"
     }

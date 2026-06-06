@@ -1,4 +1,8 @@
-import Combine
+#if canImport(Combine)
+    import Combine
+#else
+    import RepoPromptShared
+#endif
 import Foundation
 
 @MainActor

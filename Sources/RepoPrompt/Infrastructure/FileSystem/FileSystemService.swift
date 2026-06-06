@@ -1,17 +1,27 @@
-import Combine
-import CoreServices
+#if canImport(Combine)
+    import Combine
+#endif
+#if canImport(CoreServices)
+    import CoreServices
+#endif
 import Dispatch
 import Foundation
+
 #if DEBUG || EDIT_FLOW_PERF
-    import os
+    #if canImport(os)
+        import os
+    #endif
 #endif
-import CoreFoundation
+#if canImport(CoreFoundation)
+    import CoreFoundation
+#endif
 import Cuchardet
 import UniversalCharsetDetection
 #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
     import Darwin
 #else
     import Glibc
+    import RepoPromptShared
 #endif
 
 actor FileSystemService {
@@ -21,9 +31,11 @@ actor FileSystemService {
     nonisolated let diagnosticRootToken = UUID()
     nonisolated let watcherIngressMailbox: FileSystemWatcherIngressMailbox
     static let maxPendingRawEvents = 50000
-    static let overflowRescanEventFlags = FSEventStreamEventFlags(
-        kFSEventStreamEventFlagMustScanSubDirs | kFSEventStreamEventFlagRootChanged
-    )
+    #if canImport(CoreServices)
+        static let overflowRescanEventFlags = FSEventStreamEventFlags(
+            kFSEventStreamEventFlagMustScanSubDirs | kFSEventStreamEventFlagRootChanged
+        )
+    #endif
 
     #if DEBUG
         /// Static flag to enable verbose debug logging (default: false)
@@ -122,8 +134,10 @@ actor FileSystemService {
     /// True => directory, False => file
     var visitedItems = [String: Bool]()
 
-    /// The FSEvent stream reference
-    var fseventStreamRef: FSEventStreamRef?
+    #if canImport(CoreServices)
+        /// The FSEvent stream reference
+        var fseventStreamRef: FSEventStreamRef?
+    #endif
 
     /// Publishes ordered delta envelopes whenever changes or watcher progress occur.
     var changePublisher = PassthroughSubject<FileSystemDeltaPublication, Never>()

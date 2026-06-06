@@ -1,6 +1,11 @@
-import Combine
-import CoreServices
+#if canImport(Combine)
+    import Combine
+#endif
+#if canImport(CoreServices)
+    import CoreServices
+#endif
 import Foundation
+import RepoPromptShared
 
 enum WorkspaceFileTreeSnapshotMode: String {
     case none

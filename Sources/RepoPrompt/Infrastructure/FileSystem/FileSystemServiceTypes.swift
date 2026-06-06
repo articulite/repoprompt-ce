@@ -1,7 +1,27 @@
-import CoreServices
+#if canImport(CoreServices)
+    import CoreServices
+#else
+    public struct FSEventCallbackEntry {
+        public let path: String
+        public let flags: FSEventStreamEventFlags
+        public let id: FSEventStreamEventId
+    }
+
+    public struct FSEventCallbackPayload {
+        public let entries: [FSEventCallbackEntry]
+
+        public var count: Int {
+            entries.count
+        }
+    }
+#endif
 import Foundation
+import RepoPromptShared
+
 #if DEBUG || EDIT_FLOW_PERF
-    import os
+    #if canImport(os)
+        import os
+    #endif
 #endif
 
 enum FileSystemPublishPerf {

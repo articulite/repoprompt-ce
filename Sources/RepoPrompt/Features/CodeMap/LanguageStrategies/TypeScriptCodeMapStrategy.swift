@@ -310,7 +310,7 @@ enum TypeScriptCodeMapStrategy {
         let endIdx = containerBoundaries.binarySearch { $0.range.location <= range.location }
         guard endIdx > 0 else { return nil }
 
-        var smallestContaining: ContainerBoundary? = nil
+        var smallestContaining: ContainerBoundary?
         for i in stride(from: endIdx - 1, through: 0, by: -1) {
             let boundary = containerBoundaries[i]
             if let k = kind, boundary.kind != k { continue }
@@ -518,7 +518,7 @@ enum TypeScriptCodeMapStrategy {
         var parenDepth = 0
         var braceDepth = 0
         var squareDepth = 0
-        var segmentStart: String.Index? = nil
+        var segmentStart: String.Index?
         var i = head.startIndex
 
         func flushSegment(_ end: String.Index) {

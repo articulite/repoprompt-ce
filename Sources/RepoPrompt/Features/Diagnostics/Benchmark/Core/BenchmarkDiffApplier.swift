@@ -169,7 +169,7 @@ enum BenchmarkDiffApplier {
             let processedKey = searchBlock
                 .map { DiffGenerationUtility.processLine($0, precision: .normal).removedTagsHigh }
                 .joined(separator: "\n")
-            if forbidReuse && usedSearchKeys.contains(processedKey) {
+            if forbidReuse, usedSearchKeys.contains(processedKey) {
                 throw BenchmarkDiffApplicationError.editApplicationFailed(path: normalizedPath, reason: "reusedSearchBlock")
             }
             if forbidReuse {

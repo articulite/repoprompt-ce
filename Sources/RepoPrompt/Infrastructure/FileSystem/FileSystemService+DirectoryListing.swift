@@ -125,13 +125,24 @@ extension FileSystemService {
         name.hasPrefix(".repoprompt.tmp.")
     }
 
+    #if os(Linux)
+        private typealias DirPointer = OpaquePointer
+    #else
+        private typealias DirPointer = UnsafeMutablePointer<DIR>
+    #endif
+
     private static func decodeDirentName(_ entry: dirent) -> DecodedDirentName? {
         withUnsafeBytes(of: entry.d_name) { rawBuffer in
             let buffer = rawBuffer.bindMemory(to: UInt8.self)
             let maxCount = buffer.count
             guard maxCount > 0 else { return nil }
 
-            let nameLen = Int(entry.d_namlen)
+            #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
+                let nameLen = Int(entry.d_namlen)
+            #else
+                let nameLen = 0
+            #endif
+
             var length = 0
             if nameLen > 0 {
                 length = min(nameLen, maxCount)
@@ -139,7 +150,7 @@ extension FileSystemService {
                     length -= 1
                 }
             } else {
-                var nulIndex: Int? = nil
+                var nulIndex: Int?
                 var i = 0
                 while i < maxCount {
                     if buffer[i] == 0 {
@@ -160,7 +171,7 @@ extension FileSystemService {
     }
 
     private static func fileTypeFallback(
-        dir: UnsafeMutablePointer<DIR>,
+        dir: DirPointer,
         entry: dirent,
         nameLength: Int
     ) -> (isDir: Bool, isSym: Bool) {
@@ -261,9 +272,9 @@ extension FileSystemService {
             var isSym = false
 
             switch Int32(dType) {
-            case DT_DIR:
+            case Int32(DT_DIR):
                 isDir = true
-            case DT_LNK:
+            case Int32(DT_LNK):
                 let fallback = fileTypeFallback(
                     dir: dir,
                     entry: dirent,
@@ -271,7 +282,7 @@ extension FileSystemService {
                 )
                 isDir = fallback.isDir
                 isSym = true
-            case DT_UNKNOWN:
+            case Int32(DT_UNKNOWN):
                 let fallback = fileTypeFallback(
                     dir: dir,
                     entry: dirent,
@@ -298,7 +309,7 @@ extension FileSystemService {
     /// Reads a directory using `scandir(3)`, skipping "." and "..".
     /// Mark it static so it doesn't require an instance of `self`.
     private static func scandirListDirectory(_ path: String) throws -> [DirEntry] {
-        var namelist: UnsafeMutablePointer<UnsafeMutablePointer<dirent>?>? = nil
+        var namelist: UnsafeMutablePointer<UnsafeMutablePointer<dirent>?>?
 
         let count = scandir(path, &namelist, nil, nil)
         guard count >= 0 else {
@@ -342,9 +353,9 @@ extension FileSystemService {
             var isSym = false
 
             switch Int32(dType) {
-            case DT_DIR:
+            case Int32(DT_DIR):
                 isDir = true
-            case DT_LNK:
+            case Int32(DT_LNK):
                 isSym = true
                 let fullPath = (path as NSString).appendingPathComponent(rawName)
                 var st = stat()
@@ -353,7 +364,7 @@ extension FileSystemService {
                 {
                     isDir = true
                 }
-            case DT_UNKNOWN:
+            case Int32(DT_UNKNOWN):
                 // If d_type is unknown, do a stat() fallback
                 let fullPath = (path as NSString).appendingPathComponent(rawName)
                 var st = stat()

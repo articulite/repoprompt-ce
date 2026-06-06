@@ -7,10 +7,9 @@
 //
 
 #if os(Linux)
-import Glibc
-typealias Darwin = Glibc
+    import Glibc
 #else
-import Darwin
+    import Darwin
 #endif
 import Foundation
 import Logging
@@ -622,14 +621,15 @@ actor InteractiveMCPClientSession {
 
         // Disable SIGPIPE
         #if !os(Linux)
-        var noSigPipe: Int32 = 1
-        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
+            var noSigPipe: Int32 = 1
+            setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
         #endif
 
         // Set up socket address
         var addr = sockaddr_un()
         addr.sun_family = sa_family_t(AF_UNIX)
 
+        let path = socketURL.path
         let pathBytes = path.utf8CString
         withUnsafeMutablePointer(to: &addr.sun_path) { ptr in
             ptr.withMemoryRebound(to: CChar.self, capacity: pathBytes.count) { dest in
@@ -700,7 +700,7 @@ actor InteractiveMCPClientSession {
 
         var totalWritten = 0
         while totalWritten < payload.count {
-            let written = payload.withUnsafeBytes { buf in
+            let written = payload.withUnsafeBytes { (buf: UnsafeRawBufferPointer) -> Int in
                 let ptr = buf.baseAddress!.advanced(by: totalWritten)
                 return Darwin.write(fd, ptr, payload.count - totalWritten)
             }

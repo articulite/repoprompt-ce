@@ -17,6 +17,13 @@ import TreeSitterRuby
 import TreeSitterRust
 import TreeSitterTSX
 import TreeSitterTypeScript
+#if os(Linux)
+    import tree_sitter
+    import TreeSitterCPP
+    import TreeSitterCSharp
+    import TreeSitterPHP
+    import TreeSitterSwift
+#endif
 
 enum LanguageType: String, Comparable, Codable {
     case swift, js, c_sharp, python, c, rust, cpp, go, java, dart, ts, tsx,
@@ -322,22 +329,32 @@ final class SyntaxManager {
         return nil
     }
 
+    private static func makeLanguage(_ pointer: UnsafeMutablePointer<TSLanguage>?) -> Language? {
+        guard let pointer else { return nil }
+        return Language(language: pointer)
+    }
+
+    private static func makeLanguage(_ pointer: UnsafePointer<TSLanguage>?) -> Language? {
+        guard let pointer else { return nil }
+        return Language(language: UnsafeMutablePointer(mutating: pointer))
+    }
+
     private static func languageAndName(for languageType: LanguageType) -> (language: Language?, name: String) {
         switch languageType {
-        case .swift: (tree_sitter_swift().map(Language.init(language:)), "Swift")
-        case .js: (tree_sitter_javascript().map(Language.init(language:)), "JavaScript")
-        case .c_sharp: (tree_sitter_c_sharp().map(Language.init(language:)), "C#")
-        case .python: (tree_sitter_python().map(Language.init(language:)), "Python")
-        case .c: (tree_sitter_c().map(Language.init(language:)), "C")
-        case .rust: (tree_sitter_rust().map(Language.init(language:)), "Rust")
-        case .cpp: (tree_sitter_cpp().map(Language.init(language:)), "C++")
-        case .go: (tree_sitter_go().map(Language.init(language:)), "Go")
-        case .java: (tree_sitter_java().map(Language.init(language:)), "Java")
-        case .dart: (tree_sitter_dart().map(Language.init(language:)), "Dart")
-        case .ts: (tree_sitter_typescript().map(Language.init(language:)), "TypeScript")
-        case .tsx: (tree_sitter_tsx().map(Language.init(language:)), "TSX")
-        case .php: (tree_sitter_php().map(Language.init(language:)), "PHP")
-        case .ruby: (tree_sitter_ruby().map(Language.init(language:)), "Ruby")
+        case .swift: (makeLanguage(tree_sitter_swift()), "Swift")
+        case .js: (makeLanguage(tree_sitter_javascript()), "JavaScript")
+        case .c_sharp: (makeLanguage(tree_sitter_c_sharp()), "C#")
+        case .python: (makeLanguage(tree_sitter_python()), "Python")
+        case .c: (makeLanguage(tree_sitter_c()), "C")
+        case .rust: (makeLanguage(tree_sitter_rust()), "Rust")
+        case .cpp: (makeLanguage(tree_sitter_cpp()), "C++")
+        case .go: (makeLanguage(tree_sitter_go()), "Go")
+        case .java: (makeLanguage(tree_sitter_java()), "Java")
+        case .dart: (makeLanguage(tree_sitter_dart()), "Dart")
+        case .ts: (makeLanguage(tree_sitter_typescript()), "TypeScript")
+        case .tsx: (makeLanguage(tree_sitter_tsx()), "TSX")
+        case .php: (makeLanguage(tree_sitter_php()), "PHP")
+        case .ruby: (makeLanguage(tree_sitter_ruby()), "Ruby")
         }
     }
 

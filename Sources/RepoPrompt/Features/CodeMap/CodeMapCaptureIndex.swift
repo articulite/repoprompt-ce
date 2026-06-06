@@ -100,7 +100,7 @@ struct CodeMapCaptureIndex {
 
     /// Returns the smallest capture with any of the given names that fully contains the target range.
     func smallestCapture(namedAny names: [String], containing target: NSRange) -> NamedRange? {
-        var best: NamedRange? = nil
+        var best: NamedRange?
         for name in names {
             guard let candidate = smallestCapture(named: name, containing: target) else { continue }
             if best == nil || isBetterContainingCandidate(candidate, than: best!) {
@@ -114,7 +114,7 @@ struct CodeMapCaptureIndex {
         let endIdx = candidates.binarySearch { $0.range.location <= target.location }
         guard endIdx > 0 else { return nil }
 
-        var best: NamedRange? = nil
+        var best: NamedRange?
         for i in stride(from: endIdx - 1, through: 0, by: -1) {
             let candidate = candidates[i]
             if rangeContains(candidate.range, target),

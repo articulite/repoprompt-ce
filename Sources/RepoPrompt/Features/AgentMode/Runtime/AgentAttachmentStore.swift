@@ -1,5 +1,7 @@
 import Foundation
-import UniformTypeIdentifiers
+#if canImport(UniformTypeIdentifiers)
+    import UniformTypeIdentifiers
+#endif
 
 struct AgentAttachmentStore {
     private static let attachmentsDirectoryName = "agent_attachments"
@@ -91,12 +93,18 @@ struct AgentAttachmentStore {
     }
 
     private func isImageFile(at url: URL) -> Bool {
-        if let type = try? url.resourceValues(forKeys: [.contentTypeKey]).contentType {
-            return type.conforms(to: .image)
-        }
-        if let type = UTType(filenameExtension: url.pathExtension) {
-            return type.conforms(to: .image)
-        }
-        return false
+        #if canImport(UniformTypeIdentifiers)
+            if let type = try? url.resourceValues(forKeys: [.contentTypeKey]).contentType {
+                return type.conforms(to: .image)
+            }
+            if let type = UTType(filenameExtension: url.pathExtension) {
+                return type.conforms(to: .image)
+            }
+            return false
+        #else
+            let ext = url.pathExtension.lowercased()
+            let imageExtensions = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "heic", "tiff"]
+            return imageExtensions.contains(ext)
+        #endif
     }
 }

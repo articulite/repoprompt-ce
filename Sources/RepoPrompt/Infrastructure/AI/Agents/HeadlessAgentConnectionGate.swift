@@ -1,5 +1,17 @@
 import Foundation
-import OSLog
+#if canImport(OSLog)
+    import OSLog
+#else
+    struct FallbackLogger {
+        func info(_ message: @autoclosure () -> String) {
+            print("[ConnectionGate] \(message())")
+        }
+
+        func error(_ message: @autoclosure () -> String) {
+            print("[ConnectionGate] Error: \(message())")
+        }
+    }
+#endif
 
 /// Global gate to serialize headless agent connections and prevent racing.
 /// This ensures that only one headless agent (discovery, delegate-edit, or future types)
@@ -15,7 +27,11 @@ actor HeadlessAgentConnectionGate {
 
     private var waitingContinuations: [WaitingContinuation] = []
 
-    private let log = Logger(subsystem: "com.repoprompt.agents", category: "ConnectionGate")
+    #if canImport(OSLog)
+        private let log = Logger(subsystem: "com.repoprompt.agents", category: "ConnectionGate")
+    #else
+        private let log = FallbackLogger()
+    #endif
 
     /// Wait for any currently connecting agent to finish before proceeding
     func waitForClearConnection() async {

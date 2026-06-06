@@ -17,7 +17,6 @@ import SystemPackage
     import Darwin
 #elseif canImport(Glibc)
     import Glibc
-    typealias Darwin = Glibc
 #endif
 
 /// MCP Transport implementation for CLI that wraps an already-connected UNIX socket FD.
@@ -110,8 +109,8 @@ public actor BootstrapSocketMCPTransport: Transport {
 
             // Disable SIGPIPE on this socket
             #if !os(Linux)
-            var noSigPipe: Int32 = 1
-            setsockopt(socketFD, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
+                var noSigPipe: Int32 = 1
+                setsockopt(socketFD, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
             #endif
 
             try startReadSource(fd: socketFD)
@@ -206,7 +205,7 @@ public actor BootstrapSocketMCPTransport: Transport {
                 throw error
             }
 
-            let written = remaining.withUnsafeBytes { buffer in
+            let written = remaining.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) -> Int in
                 Darwin.write(socketFD, buffer.baseAddress!, buffer.count)
             }
 

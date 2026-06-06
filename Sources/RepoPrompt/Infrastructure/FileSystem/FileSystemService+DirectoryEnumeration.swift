@@ -871,7 +871,7 @@ extension FileSystemService {
                     _ = fs.fileExists(atPath: url.path, isDirectory: &isDirFlag)
 
                     let isSym = (try? url.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) ?? false
-                    if skipSymlinks && isDirFlag.boolValue && isSym {
+                    if skipSymlinks, isDirFlag.boolValue, isSym {
                         continue
                     }
 
@@ -1132,9 +1132,13 @@ extension FileSystemService {
     }
 
     func getCoreCount() -> Int {
-        var count: Int32 = 0
-        var size = MemoryLayout<Int32>.size
-        sysctlbyname("hw.ncpu", &count, &size, nil, 0)
-        return Int(count)
+        #if os(macOS)
+            var count: Int32 = 0
+            var size = MemoryLayout<Int32>.size
+            sysctlbyname("hw.ncpu", &count, &size, nil, 0)
+            return Int(count)
+        #else
+            return ProcessInfo.processInfo.activeProcessorCount
+        #endif
     }
 }

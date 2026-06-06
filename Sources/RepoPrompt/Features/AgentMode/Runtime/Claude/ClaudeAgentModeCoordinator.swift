@@ -1,6 +1,8 @@
 import Foundation
 import MCP
-import OSLog
+#if canImport(OSLog)
+    import OSLog
+#endif
 
 @MainActor
 final class ClaudeAgentModeCoordinator {
@@ -31,8 +33,10 @@ final class ClaudeAgentModeCoordinator {
         )
     }
 
-    private static let logger = Logger(subsystem: "com.repoprompt.agents", category: "ClaudeSteering")
-    private static let flagSettingsLogger = Logger(subsystem: "com.repoprompt.agents", category: "ClaudeFlagSettings")
+    #if canImport(OSLog)
+        private static let logger = Logger(subsystem: "com.repoprompt.agents", category: "ClaudeSteering")
+        private static let flagSettingsLogger = Logger(subsystem: "com.repoprompt.agents", category: "ClaudeFlagSettings")
+    #endif
 
     private weak var viewModel: AgentModeViewModel?
     private let windowID: Int
@@ -166,13 +170,21 @@ final class ClaudeAgentModeCoordinator {
         let effortLevel = currentClaudeEffortLevel(for: session)
         do {
             try await controller.applyModelAndEffort(model: model, effortLevel: effortLevel)
-            Self.flagSettingsLogger.debug(
-                "Applied Claude flag settings for tab=\(session.tabID.uuidString, privacy: .public) reason=\(reason, privacy: .public) model=\(model ?? "default", privacy: .public) effort=\(effortLevel.rawValue, privacy: .public)"
-            )
+            #if canImport(OSLog)
+                Self.flagSettingsLogger.debug(
+                    "Applied Claude flag settings for tab=\(session.tabID.uuidString, privacy: .public) reason=\(reason, privacy: .public) model=\(model ?? "default", privacy: .public) effort=\(effortLevel.rawValue, privacy: .public)"
+                )
+            #else
+                print("Applied Claude flag settings for tab=\(session.tabID.uuidString) reason=\(reason) model=\(model ?? "default") effort=\(effortLevel.rawValue)")
+            #endif
         } catch {
-            Self.flagSettingsLogger.error(
-                "Failed applying Claude flag settings for tab=\(session.tabID.uuidString, privacy: .public) reason=\(reason, privacy: .public) model=\(model ?? "default", privacy: .public) effort=\(effortLevel.rawValue, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
-            )
+            #if canImport(OSLog)
+                Self.flagSettingsLogger.error(
+                    "Failed applying Claude flag settings for tab=\(session.tabID.uuidString, privacy: .public) reason=\(reason, privacy: .public) model=\(model ?? "default", privacy: .public) effort=\(effortLevel.rawValue, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+                )
+            #else
+                print("Failed applying Claude flag settings for tab=\(session.tabID.uuidString) reason=\(reason) model=\(model ?? "default") effort=\(effortLevel.rawValue) error=\(error.localizedDescription)")
+            #endif
         }
     }
 
@@ -528,9 +540,13 @@ final class ClaudeAgentModeCoordinator {
             "\(observation.toolName)#\(observation.invocationID?.uuidString ?? "nil"):\(observation.reason):\(observation.ackCountAfterEvent)"
         }.joined(separator: ", ")
         let errorDescription = error.map { String(describing: $0) } ?? "none"
-        Self.logger.error(
-            "Claude steering safe-point timed out runID=\(runID.uuidString, privacy: .public) localCount=\(localCount) ackCount=\(snapshot.ackCount) stillActive=\(stillActive) trackedRunID=\(snapshot.trackedRunID?.uuidString ?? "nil", privacy: .public) recent=\(recent, privacy: .public) error=\(errorDescription, privacy: .public)"
-        )
+        #if canImport(OSLog)
+            Self.logger.error(
+                "Claude steering safe-point timed out runID=\(runID.uuidString, privacy: .public) localCount=\(localCount) ackCount=\(snapshot.ackCount) stillActive=\(stillActive) trackedRunID=\(snapshot.trackedRunID?.uuidString ?? "nil", privacy: .public) recent=\(recent, privacy: .public) error=\(errorDescription, privacy: .public)"
+            )
+        #else
+            print("Claude steering safe-point timed out runID=\(runID.uuidString) localCount=\(localCount) ackCount=\(snapshot.ackCount) stillActive=\(stillActive) trackedRunID=\(snapshot.trackedRunID?.uuidString ?? "nil") recent=\(recent) error=\(errorDescription)")
+        #endif
     }
 
     @discardableResult

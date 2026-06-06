@@ -5,6 +5,7 @@ import SwiftUI
 /// A drop-in replacement for `TextKitView` that supports "@" mentions.
 struct AttributedTextKitView: NSViewRepresentable {
     // ------------------------------------------------------------
+
     // MARK: – Cached resources (shared across all instances)
 
     /// ------------------------------------------------------------

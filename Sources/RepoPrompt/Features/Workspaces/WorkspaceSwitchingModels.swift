@@ -1,5 +1,6 @@
-import Foundation
-import SwiftUI
+#if canImport(SwiftUI)
+    import SwiftUI
+#endif
 
 enum WorkspaceSwitchResult {
     case switched
@@ -79,41 +80,43 @@ struct WorkspaceSwitchOverlayState: Equatable {
 
 // Extracted to reduce type-checking complexity in ContentView
 
-struct WorkspaceSwitchConfirmationModifier: ViewModifier {
-    @ObservedObject var workspaceManager: WorkspaceManagerViewModel
+#if !os(Linux)
+    struct WorkspaceSwitchConfirmationModifier: ViewModifier {
+        @ObservedObject var workspaceManager: WorkspaceManagerViewModel
 
-    private var isPresented: Binding<Bool> {
-        Binding(
-            get: { workspaceManager.pendingSwitchConfirmation != nil },
-            set: { newValue in
-                if !newValue, workspaceManager.hasPendingSwitchConfirmation {
-                    workspaceManager.resolveSwitchConfirmation(allow: false)
+        private var isPresented: Binding<Bool> {
+            Binding(
+                get: { workspaceManager.pendingSwitchConfirmation != nil },
+                set: { newValue in
+                    if !newValue, workspaceManager.hasPendingSwitchConfirmation {
+                        workspaceManager.resolveSwitchConfirmation(allow: false)
+                    }
                 }
-            }
-        )
+            )
+        }
+
+        func body(content: Content) -> some View {
+            content
+                .alert(
+                    "Switch Workspace?",
+                    isPresented: isPresented,
+                    presenting: workspaceManager.pendingSwitchConfirmation
+                ) { _ in
+                    Button("Switch and End Sessions", role: .destructive) {
+                        workspaceManager.resolveSwitchConfirmation(allow: true)
+                    }
+                    Button("Cancel", role: .cancel) {
+                        workspaceManager.resolveSwitchConfirmation(allow: false)
+                    }
+                } message: { confirmation in
+                    Text(confirmation.message)
+                }
+        }
     }
 
-    func body(content: Content) -> some View {
-        content
-            .alert(
-                "Switch Workspace?",
-                isPresented: isPresented,
-                presenting: workspaceManager.pendingSwitchConfirmation
-            ) { _ in
-                Button("Switch and End Sessions", role: .destructive) {
-                    workspaceManager.resolveSwitchConfirmation(allow: true)
-                }
-                Button("Cancel", role: .cancel) {
-                    workspaceManager.resolveSwitchConfirmation(allow: false)
-                }
-            } message: { confirmation in
-                Text(confirmation.message)
-            }
+    extension View {
+        func workspaceSwitchConfirmation(manager: WorkspaceManagerViewModel) -> some View {
+            modifier(WorkspaceSwitchConfirmationModifier(workspaceManager: manager))
+        }
     }
-}
-
-extension View {
-    func workspaceSwitchConfirmation(manager: WorkspaceManagerViewModel) -> some View {
-        modifier(WorkspaceSwitchConfirmationModifier(workspaceManager: manager))
-    }
-}
+#endif

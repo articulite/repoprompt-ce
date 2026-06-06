@@ -1,4 +1,8 @@
-import CryptoKit
+#if canImport(CryptoKit)
+    import CryptoKit
+#else
+    import RepoPromptShared
+#endif
 import Foundation
 
 // MARK: - JJ Command Runner
@@ -184,9 +188,9 @@ public actor JJCommandRunner {
             let p = Pipe()
             process.standardInput = p
             inPipe = p
-            // Suppress SIGPIPE
-            let fd = p.fileHandleForWriting.fileDescriptor
-            _ = fcntl(fd, F_SETNOSIGPIPE, 1)
+            #if !os(Linux)
+                _ = fcntl(fd, F_SETNOSIGPIPE, 1)
+            #endif
         } else {
             // Set stdin to null device to prevent blocked subprocess
             process.standardInput = FileHandle.nullDevice

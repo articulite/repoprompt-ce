@@ -1,3 +1,7 @@
+#if os(Linux)
+import CSwiftPCRE2
+#endif
+
 public struct PCRE2CompileOptions: OptionSet, Sendable {
 	public let rawValue: UInt32
 

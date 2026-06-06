@@ -46,7 +46,7 @@ struct AgentStatusPillsRow: View {
 
     var body: some View {
         #if DEBUG
-            let _ = AgentModePerfDiagnostics.increment("ui.body.statusPillsRow")
+            _ = AgentModePerfDiagnostics.increment("ui.body.statusPillsRow")
         #endif
         HStack(spacing: 12) {
             HStack(spacing: 6) {
@@ -621,7 +621,7 @@ struct AgentWorkflowPill: View {
 
     var body: some View {
         #if DEBUG
-            let _ = AgentModePerfDiagnostics.increment("ui.body.statusPills.workflow")
+            _ = AgentModePerfDiagnostics.increment("ui.body.statusPills.workflow")
         #endif
         let cornerRadius = AgentPillMetrics.cornerRadius(for: fontPreset)
         let height = AgentPillMetrics.height(for: fontPreset)
@@ -763,7 +763,7 @@ struct AgentContextPill: View {
 
     var body: some View {
         #if DEBUG
-            let _ = AgentModePerfDiagnostics.increment("ui.body.statusPills.context")
+            _ = AgentModePerfDiagnostics.increment("ui.body.statusPills.context")
         #endif
         let cornerRadius = AgentPillMetrics.cornerRadius(for: fontPreset)
         Button {
@@ -1018,7 +1018,7 @@ struct AgentOraclePill: View {
 
     var body: some View {
         #if DEBUG
-            let _ = AgentModePerfDiagnostics.increment("ui.body.statusPills.oracle")
+            _ = AgentModePerfDiagnostics.increment("ui.body.statusPills.oracle")
         #endif
         Group {
             if hasAnySessions {

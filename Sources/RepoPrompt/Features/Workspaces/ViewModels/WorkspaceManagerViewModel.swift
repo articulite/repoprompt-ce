@@ -506,6 +506,7 @@ class WorkspaceManagerViewModel: ObservableObject {
     }
 
     // ------------------------------------------------------------------
+
     // MARK: - Last-search-query Helpers
 
     // ------------------------------------------------------------------
@@ -688,6 +689,7 @@ class WorkspaceManagerViewModel: ObservableObject {
     private var reloadPresetsToken: UUID?
 
     // ------------------------------------------------------------------
+
     // MARK: - Change tracking / diff helpers
 
     // ------------------------------------------------------------------
@@ -3316,6 +3318,7 @@ class WorkspaceManagerViewModel: ObservableObject {
     }
 
     // ─────────────────────────────────────────────────────────────
+
     // MARK: - State helpers
 
     /// ─────────────────────────────────────────────────────────────

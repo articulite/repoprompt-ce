@@ -285,7 +285,7 @@ enum MCPCommandParser {
         }
 
         // Find the first non-empty alias value
-        var foundAlias: (key: String, value: String)? = nil
+        var foundAlias: (key: String, value: String)?
         var conflictingAliases: [String] = []
 
         for alias in contextBuilderInstructionAliases where alias != "instructions" {
@@ -333,7 +333,7 @@ enum MCPCommandParser {
         }
 
         // Find the first non-empty alias value
-        var foundAlias: (key: String, value: String)? = nil
+        var foundAlias: (key: String, value: String)?
         var conflictingAliases: [String] = []
 
         for alias in contextBuilderInstructionAliases where alias != "instructions" {
@@ -1938,7 +1938,7 @@ enum MCPCommandParser {
     private static func rawRemainderAfterFirstToken(_ input: String) -> String? {
         let trimmed = input.trimmingCharacters(in: .whitespaces)
         // Find the end of the first token (command name)
-        var inQuote: Character? = nil
+        var inQuote: Character?
         var i = trimmed.startIndex
         // Skip leading whitespace (shouldn't be any after trim, but be safe)
         while i < trimmed.endIndex, trimmed[i].isWhitespace {
@@ -2237,9 +2237,16 @@ enum MCPCommandParser {
             return UncheckedSendableValue(str)
         case let num as NSNumber:
             // Check if it's a boolean (NSNumber wraps both)
-            if CFGetTypeID(num) == CFBooleanGetTypeID() {
-                return UncheckedSendableValue(num.boolValue)
-            }
+            #if os(macOS)
+                if CFGetTypeID(num) == CFBooleanGetTypeID() {
+                    return UncheckedSendableValue(num.boolValue)
+                }
+            #else
+                let objcTypeStr = String(cString: num.objCType)
+                if objcTypeStr == "c" || objcTypeStr == "B" {
+                    return UncheckedSendableValue(num.boolValue)
+                }
+            #endif
             // Check if it's an integer
             if num.doubleValue == Double(num.intValue) {
                 return UncheckedSendableValue(num.intValue)
@@ -2371,7 +2378,7 @@ enum MCPCommandParser {
     /// Normalizes dashes to underscores before comparison.
     static func suggestCommand(for input: String) -> String? {
         let threshold = 2 // Max edit distance
-        var bestMatch: (command: String, distance: Int)? = nil
+        var bestMatch: (command: String, distance: Int)?
         // Normalize: convert dashes to underscores for consistent matching
         let normalized = input.lowercased().replacingOccurrences(of: "-", with: "_")
 

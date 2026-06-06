@@ -42,3 +42,9 @@ struct DeviceIdentity {
         }
     }
 }
+
+#if os(Linux)
+    import RepoPromptShared
+
+    public typealias Darwin = RepoPromptShared.Darwin
+#endif

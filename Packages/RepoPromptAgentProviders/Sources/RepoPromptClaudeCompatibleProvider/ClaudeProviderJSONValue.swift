@@ -69,7 +69,13 @@ public enum ClaudeProviderJSONValue: Sendable, Equatable, Codable {
                 self = .double(value)
             }
         case let value as NSNumber:
-            if CFGetTypeID(value) == CFBooleanGetTypeID() {
+            #if os(macOS)
+                let isBool = CFGetTypeID(value) == CFBooleanGetTypeID()
+            #else
+                let objcTypeStr = String(cString: value.objCType)
+                let isBool = objcTypeStr == "c" || objcTypeStr == "B"
+            #endif
+            if isBool {
                 self = .bool(value.boolValue)
             } else if let exactInteger = Int(value.stringValue) {
                 self = .integer(exactInteger)

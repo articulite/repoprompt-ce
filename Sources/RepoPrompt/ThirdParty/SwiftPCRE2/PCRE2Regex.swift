@@ -1,3 +1,7 @@
+#if os(Linux)
+import CSwiftPCRE2
+#endif
+
 public final class PCRE2Regex: @unchecked Sendable {
 	/// A reusable, single-consumer matching session.
 	///

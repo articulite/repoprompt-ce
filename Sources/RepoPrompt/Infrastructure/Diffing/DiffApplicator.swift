@@ -1,5 +1,7 @@
 import Foundation
-import SwiftUI
+#if canImport(SwiftUI)
+    import SwiftUI
+#endif
 
 enum DiffApplicationError: Error {
     case lineMismatch(expected: String, actual: String, line: Int)

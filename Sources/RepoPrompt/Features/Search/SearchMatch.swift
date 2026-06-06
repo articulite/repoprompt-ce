@@ -1,4 +1,7 @@
 import Foundation
+#if os(Linux)
+    import RepoPromptC
+#endif
 
 // Wildmatch flags for pattern matching
 private let WM_NOESCAPE: UInt32 = 0x01
@@ -1155,7 +1158,7 @@ actor FileSearchActor {
         options: SearchOptions = SearchOptions(),
         in files: [FileViewModel]
     ) async throws -> [SearchMatch] {
-        var autoCorrected: Bool? = nil
+        var autoCorrected: Bool?
         return try await search(
             pattern: pattern,
             isRegex: isRegex,
@@ -1173,7 +1176,7 @@ actor FileSearchActor {
         rootsByID: [UUID: WorkspaceRootRecord],
         store: WorkspaceFileContextStore
     ) async throws -> [SearchMatch] {
-        var autoCorrected: Bool? = nil
+        var autoCorrected: Bool?
         return try await search(
             pattern: pattern,
             isRegex: isRegex,
@@ -1266,7 +1269,7 @@ actor FileSearchActor {
         in files: [SearchFileDescriptor]
     ) async throws -> SearchContentResult {
         // Treat empty/whitespace literal patterns as no-ops to avoid matching every line
-        if !isRegex && pattern.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if !isRegex, pattern.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return SearchContentResult(matches: [], totalCount: 0, matchedFileCount: 0, perFileErrors: [])
         }
 
@@ -2271,7 +2274,7 @@ actor FileSearchActor {
         let hasWildcards = trimmed.contains("*") || trimmed.contains("?")
         let strongRegex = Self.containsRegexSyntax(trimmed)
         var useRegex = isRegex
-        if isRegex && hasWildcards && !strongRegex {
+        if isRegex, hasWildcards, !strongRegex {
             // Looks like a pure glob (e.g., "*.swift") → prefer glob
             useRegex = false
         }

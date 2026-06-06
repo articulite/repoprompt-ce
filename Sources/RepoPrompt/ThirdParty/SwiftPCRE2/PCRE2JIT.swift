@@ -1,3 +1,7 @@
+#if os(Linux)
+import CSwiftPCRE2
+#endif
+
 public enum PCRE2BuildConfiguration: Sendable {
 	/// True when PCRE2 was compiled with build-time JIT support.
 	///

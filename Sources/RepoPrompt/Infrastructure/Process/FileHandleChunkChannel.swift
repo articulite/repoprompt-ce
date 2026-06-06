@@ -17,7 +17,11 @@ import Foundation
 final class FileHandleChunkChannel: @unchecked Sendable {
     let stream: AsyncStream<Data>
     private let continuation: AsyncStream<Data>.Continuation
-    private var lock = os_unfair_lock()
+    #if os(Linux)
+        private let lock = NSLock()
+    #else
+        private var lock = os_unfair_lock()
+    #endif
 
     init(bufferingPolicy: AsyncStream<Data>.Continuation.BufferingPolicy = .unbounded) {
         var captured: AsyncStream<Data>.Continuation?
@@ -32,15 +36,27 @@ final class FileHandleChunkChannel: @unchecked Sendable {
 
     /// Enqueue a data chunk. Safe to call from any thread (including `readabilityHandler` dispatch queues).
     func yield(_ data: Data) {
-        os_unfair_lock_lock(&lock)
-        _ = continuation.yield(data)
-        os_unfair_lock_unlock(&lock)
+        #if os(Linux)
+            lock.lock()
+            _ = continuation.yield(data)
+            lock.unlock()
+        #else
+            os_unfair_lock_lock(&lock)
+            _ = continuation.yield(data)
+            os_unfair_lock_unlock(&lock)
+        #endif
     }
 
     /// Signal that no more chunks will be produced (e.g. EOF or shutdown).
     func finish() {
-        os_unfair_lock_lock(&lock)
-        continuation.finish()
-        os_unfair_lock_unlock(&lock)
+        #if os(Linux)
+            lock.lock()
+            continuation.finish()
+            lock.unlock()
+        #else
+            os_unfair_lock_lock(&lock)
+            continuation.finish()
+            os_unfair_lock_unlock(&lock)
+        #endif
     }
 }

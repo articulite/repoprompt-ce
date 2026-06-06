@@ -108,6 +108,7 @@ final class MCPServerViewModel: ObservableObject {
     }
 
     // -----------------------------------------------------------------
+
     // MARK: Configuration constants
 
     // -----------------------------------------------------------------
@@ -131,6 +132,7 @@ final class MCPServerViewModel: ObservableObject {
     }
 
     // ---------------------------------------------------------------------
+
     // MARK: External dependencies (weak/unowned to avoid retain cycles)
 
     // ---------------------------------------------------------------------
@@ -148,6 +150,7 @@ final class MCPServerViewModel: ObservableObject {
     private let ensureGitDataRootLoaded: (WorkspaceModel?, WorkspaceManagerViewModel?) async -> Void
 
     // ---------------------------------------------------------------------
+
     // MARK: Networking delegation
 
     // ---------------------------------------------------------------------
@@ -1554,6 +1557,7 @@ final class MCPServerViewModel: ObservableObject {
     #endif
 
     // ---------------------------------------------------------------------
+
     // MARK: Initialisation
 
     /// ---------------------------------------------------------------------
@@ -1725,6 +1729,7 @@ final class MCPServerViewModel: ObservableObject {
     }
 
     // -----------------------------------------------------------------
+
     // MARK: Public control API
 
     /// -----------------------------------------------------------------
@@ -1970,6 +1975,7 @@ final class MCPServerViewModel: ObservableObject {
     }
 
     // =====================================================================
+
     // MARK: TOOL capability
 
     // =====================================================================
@@ -2006,6 +2012,7 @@ final class MCPServerViewModel: ObservableObject {
     }
 
     // ────────────────────────────────────────────────────────────────
+
     //  MARK: - Shared wrappers for every MCP tool        🆕 NEW
 
     // ────────────────────────────────────────────────────────────────
@@ -2312,6 +2319,7 @@ final class MCPServerViewModel: ObservableObject {
     }
 
     // -----------------------------------------------------------------
+
     // MARK: Window tool catalog access
 
     /// -----------------------------------------------------------------

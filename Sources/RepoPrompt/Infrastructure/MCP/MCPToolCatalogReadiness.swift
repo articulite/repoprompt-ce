@@ -94,47 +94,51 @@ actor MCPToolCatalogReadiness {
     /// Check if required services are ready (MainActor)
     @MainActor
     private func checkServicesReady(windowID: Int?) -> Bool {
-        if let windowID {
-            // Check if the window exists
-            guard let window = WindowStatesManager.shared.window(withID: windowID) else {
-                mcpToolCatalogReadinessLog("Window \(windowID) not found during readiness check")
+        #if os(Linux)
+            return true
+        #else
+            if let windowID {
+                // Check if the window exists
+                guard let window = WindowStatesManager.shared.window(withID: windowID) else {
+                    mcpToolCatalogReadinessLog("Window \(windowID) not found during readiness check")
+                    return false
+                }
+
+                // If tools are disabled for this window, that's a valid ready state even before registration.
+                if !window.mcpServer.windowToolsEnabled {
+                    mcpToolCatalogReadinessLog("Window \(windowID) has tools disabled - considered ready")
+                    return true
+                }
+            }
+
+            // Always require WindowRoutingService to be registered (provides routing tools)
+            let hasRoutingService = ServiceRegistry.services.contains { service in
+                service is WindowRoutingService
+            }
+
+            if !hasRoutingService {
+                mcpToolCatalogReadinessLog("WindowRoutingService not yet registered")
                 return false
             }
 
-            // If tools are disabled for this window, that's a valid ready state even before registration.
-            if !window.mcpServer.windowToolsEnabled {
-                mcpToolCatalogReadinessLog("Window \(windowID) has tools disabled - considered ready")
+            // If no specific window required, routing service is enough
+            guard let windowID else {
                 return true
             }
-        }
 
-        // Always require WindowRoutingService to be registered (provides routing tools)
-        let hasRoutingService = ServiceRegistry.services.contains { service in
-            service is WindowRoutingService
-        }
+            // Check if the window's catalog service is registered.
+            let catalogService = WindowStatesManager.shared.window(withID: windowID)?.mcpServer.windowMCPToolCatalogService
+            let isWindowServiceRegistered = ServiceRegistry.services.contains { service in
+                guard let catalogService else { return false }
+                return (service as AnyObject) === (catalogService as AnyObject)
+            }
 
-        if !hasRoutingService {
-            mcpToolCatalogReadinessLog("WindowRoutingService not yet registered")
-            return false
-        }
+            if !isWindowServiceRegistered {
+                mcpToolCatalogReadinessLog("MCPWindowToolCatalogService for window \(windowID) not yet registered")
+                return false
+            }
 
-        // If no specific window required, routing service is enough
-        guard let windowID else {
             return true
-        }
-
-        // Check if the window's catalog service is registered.
-        let catalogService = WindowStatesManager.shared.window(withID: windowID)?.mcpServer.windowMCPToolCatalogService
-        let isWindowServiceRegistered = ServiceRegistry.services.contains { service in
-            guard let catalogService else { return false }
-            return (service as AnyObject) === (catalogService as AnyObject)
-        }
-
-        if !isWindowServiceRegistered {
-            mcpToolCatalogReadinessLog("MCPWindowToolCatalogService for window \(windowID) not yet registered")
-            return false
-        }
-
-        return true
+        #endif
     }
 }

@@ -46,13 +46,15 @@ public struct FrozenFileRecord: FileRecord {
         self.rootFolderPath = rootFolderPath
     }
 
-    /// Internal convenience initializer from a FileViewModel
-    init(from vm: FileViewModel) {
-        name = vm.name
-        relativePath = vm.relativePath
-        fullPath = vm.standardizedFullPath
-        rootFolderPath = vm.standardizedRootFolderPath
-    }
+    #if !os(Linux)
+        /// Internal convenience initializer from a FileViewModel
+        init(from vm: FileViewModel) {
+            name = vm.name
+            relativePath = vm.relativePath
+            fullPath = vm.standardizedFullPath
+            rootFolderPath = vm.standardizedRootFolderPath
+        }
+    #endif
 }
 
 public struct FrozenFolderRecord: FolderRecord {
@@ -70,12 +72,14 @@ public struct FrozenFolderRecord: FolderRecord {
         self.rootPath = (rootPath as NSString).standardizingPath
     }
 
-    /// Internal convenience initializer from a FolderViewModel
-    init(from vm: FolderViewModel) {
-        name = vm.name
-        displayName = vm.name
-        relativePath = vm.relativePath
-        fullPath = vm.standardizedFullPath
-        rootPath = (vm.rootPath as NSString).standardizingPath
-    }
+    #if !os(Linux)
+        /// Internal convenience initializer from a FolderViewModel
+        init(from vm: FolderViewModel) {
+            name = vm.name
+            displayName = vm.name
+            relativePath = vm.relativePath
+            fullPath = vm.standardizedFullPath
+            rootPath = (vm.rootPath as NSString).standardizingPath
+        }
+    #endif
 }

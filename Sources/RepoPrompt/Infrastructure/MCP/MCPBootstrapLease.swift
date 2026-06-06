@@ -1,5 +1,4 @@
 import Foundation
-import OSLog
 
 private func acpLeaseLog(_ message: @autoclosure () -> String) {
     guard AgentRuntimeProviderService.enableDebugLogging else { return }
@@ -45,8 +44,6 @@ struct MCPBootstrapLeaseSpec {
 /// ## Additional operations (agent-mode specific)
 /// - `releaseWithoutRoutingWait()` — releases gate immediately (when no fresh connection is expected)
 actor MCPBootstrapLease {
-    private let log = Logger(subsystem: "com.repoprompt.mcp", category: "BootstrapLease")
-
     private var spec: MCPBootstrapLeaseSpec
     private let mcpServerEnabler: (() async -> Void)?
     private let policyInstaller: (MCPBootstrapLeaseSpec) async -> Void

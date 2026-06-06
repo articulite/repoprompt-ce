@@ -413,7 +413,11 @@ extension FileSystemService {
             guard var base = ptr.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return }
             var remaining = data.count
             while remaining > 0 {
-                let n = Darwin.write(fd, base, remaining)
+                #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
+                    let n = Darwin.write(fd, base, remaining)
+                #else
+                    let n = Glibc.write(fd, base, remaining)
+                #endif
                 if n < 0 {
                     writeError = errno
                     break

@@ -271,6 +271,8 @@ allowed_tracked_docs=(
   "docs/open-source-readiness.md"
   "docs/releasing.md"
   "docs/worktrees.md"
+  "docs/wsl2-port-dev-steps.md"
+  "docs/wsl2-port-setup.md"
   "docs/investigations/test-coverage-value-audit-ledger-2026-05-29.md"
   "docs/plans/test-coverage-value-audit-2026-05-29.md"
 )

@@ -300,7 +300,7 @@ final class MCPPromptContextToolProvider: MCPWindowToolProviding {
             fallbackScope: .allLoaded
         )
         let exportPath = pathDisplay == .full ? resolvedPath : MCPWindowWorkspaceToolHelpers.prefixedRelativePath(forPath: resolvedPath, rootRefs: rootRefs)
-        let envelope = ToolResultDTOs.PromptToolEnvelope.forExport(ToolResultDTOs.PromptExportReply(path: exportPath, tokens: TokenCalculationService.estimateTokens(for: text), bytes: text.lengthOfBytes(using: .utf8), files: files, copyPreset: dependencies.copyPresetDescriptorDTO(effectivePreset)))
+        let envelope = ToolResultDTOs.PromptToolEnvelope.forExport(ToolResultDTOs.PromptExportReply(path: exportPath, tokens: TokenCalculationService.estimateTokens(for: text), bytes: text.utf8.count, files: files, copyPreset: dependencies.copyPresetDescriptorDTO(effectivePreset)))
         return try Value(envelope)
     }
 

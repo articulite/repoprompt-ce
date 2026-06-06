@@ -3,7 +3,23 @@ import Foundation
     import Synchronization
 #endif
 #if DEBUG || EDIT_FLOW_PERF
-    import os
+    #if canImport(os)
+        import os
+    #endif
+#endif
+
+#if !canImport(os)
+    struct OSSignpostIntervalState {}
+    struct OSSignposter {
+        init(subsystem: String, category: String) {}
+        func beginInterval(_ name: StaticString) -> OSSignpostIntervalState? { nil }
+        func endInterval(_ name: StaticString, _ state: OSSignpostIntervalState) {}
+        func emitEvent(_ name: StaticString) {}
+    }
+
+    private struct OSLoggerMock {
+        init(subsystem: String, category: String) {}
+    }
 #endif
 
 /// Lightweight, gated instrumentation for hot-path diagnostics.
@@ -1132,7 +1148,11 @@ enum EditFlowPerf {
 
     #if DEBUG || EDIT_FLOW_PERF
         private static let signposter = OSSignposter(subsystem: "com.repoprompt.edit-flow", category: "perf")
-        private static let logger = Logger(subsystem: "com.repoprompt.edit-flow", category: "perf")
+        #if canImport(os)
+            private static let logger = Logger(subsystem: "com.repoprompt.edit-flow", category: "perf")
+        #else
+            private static let logger = OSLoggerMock(subsystem: "com.repoprompt.edit-flow", category: "perf")
+        #endif
         private static let environmentEnabled: Bool = {
             guard let raw = ProcessInfo.processInfo.environment["REPOPROMPT_EDIT_FLOW_PERF"] else {
                 return false
@@ -1319,7 +1339,9 @@ enum EditFlowPerf {
 
         private static func logDimensions(_ dimensions: Dimensions) {
             guard !dimensions.isEmpty else { return }
-            logger.debug("dimensions \(dimensions.logDescription, privacy: .public)")
+            #if canImport(os)
+                logger.debug("dimensions \(dimensions.logDescription, privacy: .public)")
+            #endif
         }
     #else
         static var isEnabled: Bool {

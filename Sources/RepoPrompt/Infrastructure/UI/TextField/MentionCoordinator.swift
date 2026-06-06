@@ -90,6 +90,7 @@ final class MentionCoordinator: MentionTextViewDelegate {
     }
 
     // ------------------------------------------------------------------
+
     // MARK: – Private helpers
 
     /// ------------------------------------------------------------------

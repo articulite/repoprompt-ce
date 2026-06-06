@@ -503,6 +503,7 @@ class FileViewModel: ObservableObject, Identifiable, FileSystemItemViewModel, Eq
     }
 
     // ─────────────────────────────────────────────────────────────
+
     // MARK: - DEBUG aid: fallback-return telemetry (lightweight)
 
     // ─────────────────────────────────────────────────────────────

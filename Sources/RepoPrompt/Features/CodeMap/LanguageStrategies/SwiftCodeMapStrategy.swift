@@ -641,9 +641,9 @@ enum SwiftCodeMapStrategy {
             {
                 continue
             }
-            var external: String? = nil
-            var local: String? = nil
-            var type: String? = nil
+            var external: String?
+            var local: String?
+            var type: String?
 
             // Get details from captures within this param node
             if let extCap = index.firstCapture(named: "swift.param.external", containedIn: paramNode.range) {
@@ -826,7 +826,7 @@ enum SwiftCodeMapStrategy {
         let endIdx = ranges.binarySearch { $0.range.location <= target.location }
         guard endIdx > 0 else { return nil }
 
-        var best: NamedRange? = nil
+        var best: NamedRange?
         for i in stride(from: endIdx - 1, through: 0, by: -1) {
             let candidate = ranges[i]
             if rangeContains(candidate.range, target),
@@ -843,7 +843,7 @@ enum SwiftCodeMapStrategy {
         let endIdx = typeBoundaries.binarySearch { $0.range.location <= range.location }
         guard endIdx > 0 else { return nil }
 
-        var smallestContaining: TypeBoundary? = nil
+        var smallestContaining: TypeBoundary?
         for i in stride(from: endIdx - 1, through: 0, by: -1) {
             let boundary = typeBoundaries[i]
             if rangeContains(boundary.range, range),

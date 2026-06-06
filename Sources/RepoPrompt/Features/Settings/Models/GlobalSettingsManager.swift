@@ -1,4 +1,9 @@
 import Foundation
+#if canImport(Combine)
+    import Combine
+#else
+    import RepoPromptShared
+#endif
 
 // MARK: - Canonical Settings Keys
 
@@ -1481,51 +1486,53 @@ class GlobalSettingsStore: ObservableObject {
 
     // MARK: - Recommendation Provider Filter (Global)
 
-    /// Returns the global provider filter for recommendation generation. Absence means all providers.
-    func globalRecommendationProviderFilter() -> Set<RecommendationProviderKind> {
-        Self.normalizedRecommendationProviderFilter(raw: globalDefaults.recommendationProviderFilterRaw)
-    }
+    #if !os(Linux)
+        /// Returns the global provider filter for recommendation generation. Absence means all providers.
+        func globalRecommendationProviderFilter() -> Set<RecommendationProviderKind> {
+            Self.normalizedRecommendationProviderFilter(raw: globalDefaults.recommendationProviderFilterRaw)
+        }
 
-    /// Normalizes persisted provider filters across recommendation-provider list changes.
-    ///
-    /// Older builds could persist the previous "all providers" set, which included Anthropic API
-    /// and did not include Cursor CLI. Treat that legacy all-providers shape as the current all
-    /// providers so newly supported providers are not silently hidden from recommendations/UI.
-    static func normalizedRecommendationProviderFilter(raw stored: [String]?) -> Set<RecommendationProviderKind> {
-        guard let stored else {
-            return Set(RecommendationProviderKind.allCases)
+        /// Normalizes persisted provider filters across recommendation-provider list changes.
+        ///
+        /// Older builds could persist the previous "all providers" set, which included Anthropic API
+        /// and did not include Cursor CLI. Treat that legacy all-providers shape as the current all
+        /// providers so newly supported providers are not silently hidden from recommendations/UI.
+        static func normalizedRecommendationProviderFilter(raw stored: [String]?) -> Set<RecommendationProviderKind> {
+            guard let stored else {
+                return Set(RecommendationProviderKind.allCases)
+            }
+            let storedSet = Set(stored)
+            let legacyAllProviders: Set<String> = [
+                RecommendationProviderKind.claudeCode.rawValue,
+                RecommendationProviderKind.codex.rawValue,
+                RecommendationProviderKind.openAI.rawValue,
+                "anthropic",
+                "geminiCLI"
+            ]
+            if storedSet.isSuperset(of: legacyAllProviders) {
+                return Set(RecommendationProviderKind.allCases)
+            }
+            let normalized = Set(stored.compactMap(RecommendationProviderKind.init(rawValue:)))
+            if normalized.isEmpty, !stored.isEmpty {
+                return Set(RecommendationProviderKind.allCases)
+            }
+            return normalized
         }
-        let storedSet = Set(stored)
-        let legacyAllProviders: Set<String> = [
-            RecommendationProviderKind.claudeCode.rawValue,
-            RecommendationProviderKind.codex.rawValue,
-            RecommendationProviderKind.openAI.rawValue,
-            "anthropic",
-            "geminiCLI"
-        ]
-        if storedSet.isSuperset(of: legacyAllProviders) {
-            return Set(RecommendationProviderKind.allCases)
-        }
-        let normalized = Set(stored.compactMap(RecommendationProviderKind.init(rawValue:)))
-        if normalized.isEmpty, !stored.isEmpty {
-            return Set(RecommendationProviderKind.allCases)
-        }
-        return normalized
-    }
 
-    /// Updates the global provider filter. Passing all providers clears the override.
-    func setGlobalRecommendationProviderFilter(_ providers: Set<RecommendationProviderKind>, commit: Bool = true) {
-        if providers == Set(RecommendationProviderKind.allCases) {
-            globalDefaults.recommendationProviderFilterRaw = nil
-        } else {
-            globalDefaults.recommendationProviderFilterRaw = RecommendationProviderKind.allCases
-                .filter { providers.contains($0) }
-                .map(\.rawValue)
+        /// Updates the global provider filter. Passing all providers clears the override.
+        func setGlobalRecommendationProviderFilter(_ providers: Set<RecommendationProviderKind>, commit: Bool = true) {
+            if providers == Set(RecommendationProviderKind.allCases) {
+                globalDefaults.recommendationProviderFilterRaw = nil
+            } else {
+                globalDefaults.recommendationProviderFilterRaw = RecommendationProviderKind.allCases
+                    .filter { providers.contains($0) }
+                    .map(\.rawValue)
+            }
+            if commit {
+                save()
+            }
         }
-        if commit {
-            save()
-        }
-    }
+    #endif
 
     private func normalizedRoleOverrides(_ overrides: [String: String]?) -> [String: String]? {
         Self.normalizedMCPAgentRoleOverrides(overrides)

@@ -1,4 +1,4 @@
-#if DEBUG
+#if DEBUG || !canImport(Security)
     import Foundation
 
     /// Debug-build-only in-memory secure storage used when local app signing cannot safely use Keychain.

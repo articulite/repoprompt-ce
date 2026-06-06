@@ -332,3 +332,56 @@ extension PresetFileStore {
         }
     }
 }
+
+#if os(Linux)
+    public enum ChatPresetMode: String, CaseIterable, Codable {
+        case chat
+        case plan
+        case review
+    }
+
+    public struct ChatPreset: Codable, Equatable, Identifiable {
+        public let id: UUID
+        public let name: String
+        public let mode: ChatPresetMode
+        public var modelPresetName: String?
+        public let description: String?
+        public let icon: String?
+        public let isBuiltIn: Bool
+        public var fileTreeMode: FileTreeOption?
+        public var codeMapUsage: CodeMapUsage?
+        public var gitInclusion: GitInclusion?
+        public var storedPromptIds: [UUID]?
+        public var useStoredPromptsAsSystem: Bool?
+
+        public init(
+            id: UUID = UUID(),
+            name: String,
+            mode: ChatPresetMode,
+            modelPresetName: String? = nil,
+            description: String? = nil,
+            icon: String? = nil,
+            isBuiltIn: Bool = false,
+            fileTreeMode: FileTreeOption? = nil,
+            codeMapUsage: CodeMapUsage? = nil,
+            gitInclusion: GitInclusion? = nil,
+            storedPromptIds: [UUID]? = nil,
+            useStoredPromptsAsSystem: Bool? = nil
+        ) {
+            self.id = id
+            self.name = name
+            self.mode = mode
+            self.modelPresetName = modelPresetName
+            self.description = description
+            self.icon = icon
+            self.isBuiltIn = isBuiltIn
+            self.fileTreeMode = fileTreeMode
+            self.codeMapUsage = codeMapUsage
+            self.gitInclusion = gitInclusion
+            self.storedPromptIds = storedPromptIds
+            self.useStoredPromptsAsSystem = useStoredPromptsAsSystem
+        }
+    }
+
+    public struct ChatPresetOverrides: Codable, Equatable {}
+#endif

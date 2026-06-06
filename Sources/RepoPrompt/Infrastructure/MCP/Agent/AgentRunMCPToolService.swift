@@ -275,7 +275,7 @@ struct AgentRunMCPToolService {
         let sessionName = normalizedString(args["session_name"])
         let target = try await agentModeVM.mcpResolveOrCreateSessionTarget(
             tabID: resolvedTabID,
-            sessionID: nil,
+            sessionID: nil as UUID?,
             createIfNeeded: true,
             sessionName: sessionName,
             parentSessionID: spawnParentSessionID,
@@ -314,7 +314,7 @@ struct AgentRunMCPToolService {
                 agentModeVM,
                 selection.agentRaw,
                 selection.modelRaw,
-                nil,
+                nil as String?,
                 selection.taskLabelKind,
                 workflow
             )
@@ -356,7 +356,7 @@ struct AgentRunMCPToolService {
         let timeoutSeconds = try forcePoll ? 0 : (parseTimeoutSeconds(args["timeout"]) ?? Self.defaultWaitTimeoutSeconds)
         let metadata = await captureRequestMetadata()
         let initialSnapshot = await currentSnapshot(sessionID: sessionID, agentModeVM: agentModeVM)
-        if initialSnapshot.status != .running || timeoutSeconds <= 0 {
+        if initialSnapshot.status != AgentRunMCPSnapshot.Status.running || timeoutSeconds <= 0 {
             return decoratedRunValue(snapshot: initialSnapshot)
         }
         return try await waitForInterestingState(
@@ -387,7 +387,7 @@ struct AgentRunMCPToolService {
         let timeoutSeconds = try parseTimeoutSeconds(args["timeout"]) ?? Self.defaultWaitTimeoutSeconds
         let metadata = await captureRequestMetadata()
         let initialSnapshots = await collectCurrentSnapshots(sessionIDs: sessionIDs, agentModeVM: agentModeVM)
-        for snapshot in initialSnapshots where snapshot.status == .running {
+        for snapshot in initialSnapshots where snapshot.status == AgentRunMCPSnapshot.Status.running {
             await reconcileStoreForBlockingWait(sessionID: snapshot.sessionID, currentSnapshot: snapshot)
         }
         print("[AgentRunSteeringWake] agent_run wait-any begin sessions=\(sessionIDs.map(\.uuidString).joined(separator: ",")) timeout=\(timeoutSeconds) initial=\(statusSummary(initialSnapshots))")
@@ -396,7 +396,7 @@ struct AgentRunMCPToolService {
             return decoratedMultiWaitValue(
                 snapshot: ready,
                 sessionIDs: sessionIDs,
-                result: ready.status == .expired ? "expired" : "snapshot_ready",
+                result: ready.status == AgentRunMCPSnapshot.Status.expired ? "expired" : "snapshot_ready",
                 pendingSessionIDs: pendingSessionIDs(from: initialSnapshots)
             )
         }
@@ -475,7 +475,7 @@ struct AgentRunMCPToolService {
         let agentModeVM = targetWindow.agentModeViewModel
         let sessionID = try await resolveControlSessionID(args, targetWindow: targetWindow, agentModeVM: agentModeVM)
         let initialSnapshot = await currentSnapshot(sessionID: sessionID, agentModeVM: agentModeVM)
-        if initialSnapshot.status == .expired {
+        if initialSnapshot.status == AgentRunMCPSnapshot.Status.expired {
             throw MCPError.invalidParams("This session control handle is no longer active.")
         }
         if initialSnapshot.status.isTerminal {
@@ -538,10 +538,10 @@ struct AgentRunMCPToolService {
             // doesn't reset the effort that was set during the initial start call.
             let existingReasoningEffort = existingSession?.selectedReasoningEffortRaw
             let target = try await agentModeVM.mcpResolveOrCreateSessionTarget(
-                tabID: nil,
+                tabID: nil as UUID?,
                 sessionID: sessionID,
                 createIfNeeded: false,
-                sessionName: nil
+                sessionName: nil as String?
             )
             let outcome = try await startRun(
                 target,
@@ -549,8 +549,8 @@ struct AgentRunMCPToolService {
                 metadata,
                 bindCurrentRequestToTab,
                 agentModeVM,
-                nil,
-                nil,
+                nil as String?,
+                nil as String?,
                 existingReasoningEffort,
                 existingTaskLabelKind,
                 workflow
@@ -665,7 +665,7 @@ struct AgentRunMCPToolService {
                 switch disposition {
                 case let .snapshotReady(triggeringSnapshot):
                     print("[AgentRunSteeringWake] agent_run wait returning snapshotReady sessionID=\(sessionID) status=\(triggeringSnapshot.status.rawValue)")
-                    completionBox.set(AgentRunWaitScopeCompletion(reason: triggeringSnapshot.status == .expired ? .expired : .snapshotReady, result: triggeringSnapshot.status == .expired ? "expired" : "snapshot_ready", winnerSessionID: triggeringSnapshot.status == .expired ? nil : sessionID, pendingSessionIDs: triggeringSnapshot.status == .expired ? [sessionID] : [], errorDescription: nil))
+                    completionBox.set(AgentRunWaitScopeCompletion(reason: triggeringSnapshot.status == AgentRunMCPSnapshot.Status.expired ? AgentRunWaitScopeCompletion.Reason.expired : AgentRunWaitScopeCompletion.Reason.snapshotReady, result: triggeringSnapshot.status == AgentRunMCPSnapshot.Status.expired ? "expired" : "snapshot_ready", winnerSessionID: triggeringSnapshot.status == AgentRunMCPSnapshot.Status.expired ? nil : sessionID, pendingSessionIDs: triggeringSnapshot.status == AgentRunMCPSnapshot.Status.expired ? [sessionID] : [], errorDescription: nil))
                     return triggeringSnapshot.toValue()
                 case let .noteworthySnapshot(triggeringSnapshot, reason):
                     print("[AgentRunSteeringWake] agent_run wait returning noteworthy sessionID=\(sessionID) reason=\(reason.rawValue) status=\(triggeringSnapshot.status.rawValue)")
@@ -795,7 +795,7 @@ struct AgentRunMCPToolService {
 
         let runningIDs = snapshots.filter { $0.status == .running }.map(\.sessionID)
         guard runningIDs.isEmpty == false else { return nil }
-        let pendingIDs = snapshots.filter { !isInterestingSnapshot($0) && $0.status != .expired }.map(\.sessionID)
+        let pendingIDs = snapshots.filter { !isInterestingSnapshot($0) && $0.status != AgentRunMCPSnapshot.Status.expired }.map(\.sessionID)
         return Self.decoratedMultiWaitInterruptValue(
             sessionIDs: sessionIDs,
             snapshots: snapshots,
@@ -1101,7 +1101,7 @@ struct AgentRunMCPToolService {
 
     private nonisolated func singleWaitScopeCompletion(from value: Value, sessionID: UUID) -> AgentRunWaitScopeCompletion {
         let status = value.objectValue?["status"]?.stringValue.flatMap(AgentRunMCPSnapshot.Status.init(rawValue:))
-        let reason: AgentRunWaitScopeCompletion.Reason = status == .expired ? .expired : .snapshotReady
+        let reason: AgentRunWaitScopeCompletion.Reason = status == AgentRunMCPSnapshot.Status.expired ? AgentRunWaitScopeCompletion.Reason.expired : AgentRunWaitScopeCompletion.Reason.snapshotReady
         return AgentRunWaitScopeCompletion(
             reason: reason,
             result: reason.rawValue,
@@ -1663,7 +1663,7 @@ struct AgentRunMCPToolService {
         targetWindow: WindowState
     ) async throws -> StartWorktreeRepositoryContext {
         let store = targetWindow.promptManager.workspaceFileContextStore
-        let visibleRoots = await store.rootRefs(scope: .visibleWorkspace)
+        let visibleRoots = await store.rootRefs(scope: WorkspaceLookupRootScope.visibleWorkspace)
         var repos: [GitRepoDescriptor] = []
         var seen = Set<String>()
         for root in visibleRoots {

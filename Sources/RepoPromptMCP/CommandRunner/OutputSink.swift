@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import RepoPromptShared
 
 /// Manages where command output goes - stdout or file redirect.
 enum OutputSink {

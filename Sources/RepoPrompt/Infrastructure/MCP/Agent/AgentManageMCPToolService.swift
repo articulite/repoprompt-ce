@@ -501,10 +501,10 @@ struct AgentManageMCPToolService {
         )
         let resolved = resolvedModelAndEffort(agentRaw: selection.agentRaw, modelRaw: selection.modelRaw, args: args)
         let target = try await agentModeVM.mcpResolveOrCreateSessionTarget(
-            tabID: nil,
+            tabID: nil as UUID?,
             sessionID: sessionID,
             createIfNeeded: true,
-            sessionName: nil,
+            sessionName: nil as String?,
             parentSessionID: spawnParentSessionID,
             inheritWorktreeBindings: false
         )
@@ -565,10 +565,10 @@ struct AgentManageMCPToolService {
         let target: AgentModeViewModel.MCPSessionTarget
         do {
             target = try await agentModeVM.mcpResolveOrCreateSessionTarget(
-                tabID: nil,
+                tabID: nil as UUID?,
                 sessionID: sessionID,
                 createIfNeeded: false,
-                sessionName: nil
+                sessionName: nil as String?
             )
         } catch {
             throw MCPError.invalidParams("Session '\(sessionReference)' is not currently live and cannot be stopped.")
@@ -592,7 +592,7 @@ struct AgentManageMCPToolService {
             stateRaw: session.runState.rawValue,
             isLive: true
         )
-        summary["stop_requested"] = .bool(wasActive)
+        summary["stop_requested"] = Value.bool(wasActive)
         return .object(summary)
     }
 

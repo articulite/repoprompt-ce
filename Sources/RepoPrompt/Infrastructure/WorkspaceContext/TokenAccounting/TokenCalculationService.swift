@@ -5,7 +5,9 @@
 //  Created by Eric Provencher on 2025-01-21.
 //
 
-import Combine
+#if canImport(Combine)
+    import Combine
+#endif
 import Foundation
 
 /// Info for each file/folder's tokens
@@ -361,7 +363,7 @@ actor TokenCalculationService {
 
     private static func buildSliceAssemblies(
         for entries: [PromptFileEntrySnapshot]
-    ) -> [UUID: FileViewModel.SliceAssembly] {
+    ) -> [UUID: WorkspaceSliceAssembly] {
         let candidates = entries.filter { entry in
             if let ranges = entry.ranges {
                 return !ranges.isEmpty
@@ -370,12 +372,12 @@ actor TokenCalculationService {
         }
         guard !candidates.isEmpty else { return [:] }
 
-        var result: [UUID: FileViewModel.SliceAssembly] = [:]
+        var result: [UUID: WorkspaceSliceAssembly] = [:]
         result.reserveCapacity(candidates.count)
         for entry in candidates {
             if Task.isCancelled { break }
             guard let content = entry.loadedContent else { continue }
-            result[entry.fileID] = FileViewModel.buildSliceAssembly(from: content, ranges: entry.ranges)
+            result[entry.fileID] = SliceAssemblyBuilder.build(from: content, ranges: entry.ranges)
         }
         return result
     }
@@ -398,7 +400,7 @@ actor TokenCalculationService {
         contentEntries: [PromptFileEntrySnapshot],
         codemapEntries: [PromptFileEntrySnapshot],
         unresolvedCodemapEntries: [PromptFileEntrySnapshot],
-        sliceAssemblies: [UUID: FileViewModel.SliceAssembly]
+        sliceAssemblies: [UUID: WorkspaceSliceAssembly]
     ) -> AggregatedEntryTokens {
         var entryResultsByFileID: [UUID: PromptEntriesEvaluation.EntryResult] = [:]
         var folderTokenAccum: [String: Int] = [:]

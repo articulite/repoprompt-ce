@@ -1,5 +1,18 @@
 import Foundation
-import OSLog
+#if canImport(OSLog)
+    import OSLog
+#else
+    struct FallbackLogger {
+        func debug(_ message: @autoclosure () -> String) {}
+        func info(_ message: @autoclosure () -> String) {
+            print("[RoutingWaiter] \(message())")
+        }
+
+        func warning(_ message: @autoclosure () -> String) {
+            print("[RoutingWaiter] Warning: \(message())")
+        }
+    }
+#endif
 
 /// Global actor to coordinate "runID became routed" events between:
 /// - Producers: `MCPServerViewModel.registerRunIDMapping` (success) and `cleanupRunIDMapping` (failure)
@@ -10,7 +23,11 @@ import OSLog
 actor MCPRoutingWaiter {
     static let shared = MCPRoutingWaiter()
 
-    private let log = Logger(subsystem: "com.repoprompt.mcp", category: "RoutingWaiter")
+    #if canImport(OSLog)
+        private let log = Logger(subsystem: "com.repoprompt.mcp", category: "RoutingWaiter")
+    #else
+        private let log = FallbackLogger()
+    #endif
 
     /// TTL for terminal state entries (prevents memory leaks from late signals)
     private static let terminalStateTTL: TimeInterval = 120 // 2 minutes

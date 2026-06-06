@@ -1,6 +1,12 @@
-import Combine
-import CoreFoundation
-import CoreServices
+#if canImport(Combine)
+    import Combine
+#endif
+#if canImport(CoreFoundation)
+    import CoreFoundation
+#endif
+#if canImport(CoreServices)
+    import CoreServices
+#endif
 import Dispatch
 import Foundation
 

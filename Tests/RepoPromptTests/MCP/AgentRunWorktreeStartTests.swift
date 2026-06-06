@@ -134,8 +134,8 @@ final class AgentRunWorktreeStartTests: XCTestCase {
 
             let object = try XCTUnwrap(value.objectValue)
             let sessionObject = try XCTUnwrap(object["session"]?.objectValue)
-            let childSessionID = try XCTUnwrap(try UUID(uuidString: XCTUnwrap(object["session_id"]?.stringValue)))
-            let childTabID = try XCTUnwrap(try UUID(uuidString: XCTUnwrap(sessionObject["context_id"]?.stringValue)))
+            let childSessionID = try XCTUnwrap(UUID(uuidString: XCTUnwrap(object["session_id"]?.stringValue)))
+            let childTabID = try XCTUnwrap(UUID(uuidString: XCTUnwrap(sessionObject["context_id"]?.stringValue)))
             XCTAssertEqual(sessionObject["parent_session_id"]?.stringValue, parentID.uuidString)
 
             let child = window.agentModeViewModel.session(for: childTabID)
@@ -172,7 +172,7 @@ final class AgentRunWorktreeStartTests: XCTestCase {
 
         let object = try XCTUnwrap(value.objectValue)
         let sessionObject = try XCTUnwrap(object["session"]?.objectValue)
-        let childTabID = try XCTUnwrap(try UUID(uuidString: XCTUnwrap(sessionObject["context_id"]?.stringValue)))
+        let childTabID = try XCTUnwrap(UUID(uuidString: XCTUnwrap(sessionObject["context_id"]?.stringValue)))
         XCTAssertNil(sessionObject["parent_session_id"]?.stringValue)
         XCTAssertNil(object["worktree"])
         XCTAssertNil(object["worktree_bindings"])
@@ -632,8 +632,8 @@ final class AgentRunWorktreeStartTests: XCTestCase {
 
             let object = try XCTUnwrap(value.objectValue)
             let sessionObject = try XCTUnwrap(object["session"]?.objectValue)
-            let childSessionID = try XCTUnwrap(try UUID(uuidString: XCTUnwrap(object["session_id"]?.stringValue)))
-            let childTabID = try XCTUnwrap(try UUID(uuidString: XCTUnwrap(sessionObject["context_id"]?.stringValue)))
+            let childSessionID = try XCTUnwrap(UUID(uuidString: XCTUnwrap(object["session_id"]?.stringValue)))
+            let childTabID = try XCTUnwrap(UUID(uuidString: XCTUnwrap(sessionObject["context_id"]?.stringValue)))
             XCTAssertEqual(sessionObject["parent_session_id"]?.stringValue, parentID.uuidString)
             let bindings = try XCTUnwrap(object["worktree_bindings"]?.arrayValue)
             XCTAssertEqual(bindings.count, 1)

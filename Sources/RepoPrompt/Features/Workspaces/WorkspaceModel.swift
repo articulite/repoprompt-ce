@@ -1,5 +1,7 @@
 import Foundation
-import OSLog
+#if canImport(OSLog)
+    import OSLog
+#endif
 
 struct WorkspaceRootSetKey: Hashable {
     let normalizedPaths: [String]
@@ -362,14 +364,20 @@ struct WorkspaceModel: Codable, Identifiable, Equatable {
     /// compose-tab invariant normalization once. Excluded from CodingKeys/Equatable.
     var normalizationRequiresSave: Bool
 
-    private static let decodeLogger = Logger(subsystem: "com.repoprompt.workspace", category: "decode")
+    #if canImport(OSLog)
+        private static let decodeLogger = Logger(subsystem: "com.repoprompt.workspace", category: "decode")
+    #endif
     private static var composeTabsDecodeWarningEmitted = false
 
     private static func logComposeTabsDecodeFailure(error: Error, workspaceID: UUID) {
         guard !composeTabsDecodeWarningEmitted else { return }
         composeTabsDecodeWarningEmitted = true
         let message = "Failed to decode composeTabs for workspace \(workspaceID.uuidString); falling back to empty array. Error: \(error.localizedDescription)"
-        decodeLogger.error("\(message, privacy: .public)")
+        #if canImport(OSLog)
+            decodeLogger.error("\(message, privacy: .public)")
+        #else
+            print("[WorkspaceModel] Error: \(message)")
+        #endif
     }
 
     /// Default init used by code

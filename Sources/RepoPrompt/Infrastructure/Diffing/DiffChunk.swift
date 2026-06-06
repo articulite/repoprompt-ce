@@ -1,4 +1,6 @@
-import SwiftUI
+#if canImport(SwiftUI)
+    import SwiftUI
+#endif
 
 struct DiffChunk: Equatable {
     var lines: [DiffLine]
@@ -99,28 +101,30 @@ struct DiffLine: Equatable {
         }
     }
 
-    var prefixColor: Color {
-        switch type {
-        case .addition: .green
-        case .removal: .red
-        case .context: .primary
+    #if canImport(SwiftUI)
+        var prefixColor: Color {
+            switch type {
+            case .addition: .green
+            case .removal: .red
+            case .context: .primary
+            }
         }
-    }
 
-    var contentColor: Color {
-        switch type {
-        case .addition, .removal: .primary
-        case .context: .secondary
+        var contentColor: Color {
+            switch type {
+            case .addition, .removal: .primary
+            case .context: .secondary
+            }
         }
-    }
 
-    var backgroundColor: Color {
-        switch type {
-        case .addition: Color.green.opacity(0.1)
-        case .removal: Color.red.opacity(0.1)
-        case .context: Color.clear
+        var backgroundColor: Color {
+            switch type {
+            case .addition: Color.green.opacity(0.1)
+            case .removal: Color.red.opacity(0.1)
+            case .context: Color.clear
+            }
         }
-    }
+    #endif
 
     /// Implement Equatable with fuzzy comparison
     static func == (lhs: DiffLine, rhs: DiffLine) -> Bool {

@@ -1,4 +1,8 @@
-import CryptoKit
+#if canImport(CryptoKit)
+    import CryptoKit
+#else
+    import RepoPromptShared
+#endif
 import Foundation
 
 // ============ The Cache Data Structures ============

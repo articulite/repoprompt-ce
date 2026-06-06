@@ -1,5 +1,13 @@
-import CryptoKit
-import Darwin
+#if canImport(CryptoKit)
+    import CryptoKit
+#else
+    import RepoPromptShared
+#endif
+#if canImport(Darwin)
+    import Darwin
+#elseif canImport(Glibc)
+    import Glibc
+#endif
 import Foundation
 
 /// Async Git helper for fetching repository information
@@ -2086,7 +2094,9 @@ actor GitService {
             inPipe = p
             // Suppress SIGPIPE on this write FD so closed readers won’t crash the app
             let fd = p.fileHandleForWriting.fileDescriptor
-            _ = fcntl(fd, F_SETNOSIGPIPE, 1)
+            #if os(macOS)
+                _ = fcntl(fd, F_SETNOSIGPIPE, 1)
+            #endif
         }
 
         // Build async streams for stdout/stderr and single consumer tasks to collect data

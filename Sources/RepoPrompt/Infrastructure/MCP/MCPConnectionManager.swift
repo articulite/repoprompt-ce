@@ -1,16 +1,24 @@
 // MARK: - Connection Management Components
 
-import Darwin
+#if canImport(Darwin)
+    import Darwin
+#elseif os(Linux)
+    import Glibc
+#endif
 import Foundation
 import JSONSchema
 import Logging
 import MCP
 import Ontology
-import OSLog
+#if canImport(OSLog)
+    import OSLog
+#endif
 import RepoPromptShared
-import SwiftUI
+#if canImport(SwiftUI)
+    import SwiftUI
+#endif
 
-#if DEBUG
+#if DEBUG && canImport(CryptoKit)
     import CryptoKit
 #endif
 
@@ -1119,6 +1127,7 @@ actor ServerNetworkManager {
     static var currentTabContextHint: MCPServerViewModel.TabContextHint?
 
     // ------------------------------------------------------------------
+
     // MARK: Tool ownership tracking helpers
 
     /// ------------------------------------------------------------------
@@ -1185,6 +1194,7 @@ actor ServerNetworkManager {
     }
 
     // ------------------------------------------------------------------
+
     // MARK: Window-selection helpers (called from WindowRoutingService)
 
     /// ------------------------------------------------------------------
@@ -3948,6 +3958,7 @@ actor ServerNetworkManager {
     /// (Legacy TCP transport has been removed; this helper now returns nil.)
     /// - Parameter remotePort: The remote port from the incoming connection for precise matching
     /// - Returns: Always nil now that TCP transport and cache files are deprecated
+
     // MARK: - Identity Failure Recording & Escalation
 
     /// Transport type for identity failure tracking
@@ -4476,13 +4487,30 @@ actor ServerNetworkManager {
     }
 
     private nonisolated func parentPID(of pid: pid_t) -> pid_t? {
-        var info = kinfo_proc()
-        var size = MemoryLayout.stride(ofValue: info)
-        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
-        guard sysctl(&mib, u_int(mib.count), &info, &size, nil, 0) == 0, size > 0 else {
+        #if os(macOS)
+            var info = kinfo_proc()
+            var size = MemoryLayout.stride(ofValue: info)
+            var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
+            guard sysctl(&mib, u_int(mib.count), &info, &size, nil, 0) == 0, size > 0 else {
+                return nil
+            }
+            return info.kp_eproc.e_ppid
+        #elseif os(Linux)
+            guard let content = try? String(contentsOfFile: "/proc/\(pid)/stat", encoding: .utf8) else {
+                return nil
+            }
+            guard let lastParenIndex = content.lastIndex(of: ")") else {
+                return nil
+            }
+            let afterParen = content[content.index(after: lastParenIndex)...].trimmingCharacters(in: .whitespacesAndNewlines)
+            let parts = afterParen.split(separator: " ")
+            guard parts.count >= 2, let ppid = Int32(parts[1]) else {
+                return nil
+            }
+            return ppid
+        #else
             return nil
-        }
-        return info.kp_eproc.e_ppid
+        #endif
     }
 
     func installClientConnectionPolicy(
@@ -6772,8 +6800,8 @@ actor ServerNetworkManager {
             // Do not repeat it on each tools/call; it can re-enter routing notifications
             // while the call is waiting for a response.
 
-            var dispatchTabContextHint: MCPServerViewModel.TabContextHint? = nil
-            var preResolvedWindowID: Int? = nil
+            var dispatchTabContextHint: MCPServerViewModel.TabContextHint?
+            var preResolvedWindowID: Int?
             do {
                 let logicalContextState = EditFlowPerf.begin(
                     EditFlowPerf.Stage.MCPToolCall.logicalContextResolution,
@@ -7117,7 +7145,7 @@ actor ServerNetworkManager {
                                     } else {
                                         connectedDuringSingleWindow = windowCount == 1
                                     }
-                                    if !bypassWindowRouting && chosenID == nil && (!multiWindowModeEffective || connectedDuringSingleWindow) {
+                                    if !bypassWindowRouting, chosenID == nil, !multiWindowModeEffective || connectedDuringSingleWindow {
                                         // Find the window with active MCP tools
                                         let activeWindowID = await WindowStatesManager.shared.firstMCPEnabledWindow()?.windowID
                                         if let activeID = activeWindowID {
@@ -7761,7 +7789,7 @@ actor ServerNetworkManager {
             let pendingName = pendingConnections[id]
             let clientName = admittedName ?? pendingName ?? "Connecting..."
 
-            if admittedName == nil && pendingName == nil {
+            if admittedName == nil, pendingName == nil {
                 log.warning("Dashboard: Connection \(id) has no client name (admitted=nil, pending=nil)")
             }
 
@@ -8010,17 +8038,25 @@ actor ServerNetworkManager {
         let keys = Array(routingState.records.keys)
 
         // Get live windows to also prune records pointing to closed windows
-        let liveWindows: Set<Int> = await MainActor.run {
-            Set(WindowStatesManager.shared.allWindows.map(\.windowID))
-        }
+        #if os(Linux)
+            let liveWindows: Set<Int> = []
+        #else
+            let liveWindows: Set<Int> = await MainActor.run {
+                Set(WindowStatesManager.shared.allWindows.map(\.windowID))
+            }
+        #endif
 
         for clientID in keys {
             guard let records = routingState.records[clientID] else { continue }
             // Keep only fresh, token-backed records; drop expired, nil-sessionKey, and invalid window entries
             let filtered = records.filter {
-                $0.sessionKey != nil &&
-                    now.timeIntervalSince($0.lastSeenAt) < routingRecordTTL &&
-                    ($0.lastWindowID == nil || liveWindows.contains($0.lastWindowID!))
+                #if os(Linux)
+                    return $0.sessionKey != nil && now.timeIntervalSince($0.lastSeenAt) < routingRecordTTL
+                #else
+                    return $0.sessionKey != nil &&
+                        now.timeIntervalSince($0.lastSeenAt) < routingRecordTTL &&
+                        ($0.lastWindowID == nil || liveWindows.contains($0.lastWindowID!))
+                #endif
             }
             if filtered.isEmpty {
                 routingState.records.removeValue(forKey: clientID)
@@ -8076,11 +8112,15 @@ actor ServerNetworkManager {
         )
 
         let (workspaceID, instanceNumber): (UUID?, Int?) = await MainActor.run {
-            guard
-                let windowID,
-                let win = WindowStatesManager.shared.window(withID: windowID)
-            else { return (nil, nil) }
-            return (win.workspaceManager.activeWorkspace?.id, win.workspaceInstanceNumber)
+            #if os(Linux)
+                return (nil, nil)
+            #else
+                guard
+                    let windowID,
+                    let win = WindowStatesManager.shared.window(withID: windowID)
+                else { return (nil, nil) }
+                return (win.workspaceManager.activeWorkspace?.id, win.workspaceInstanceNumber)
+            #endif
         }
 
         await pruneRoutingRecords()
@@ -8137,7 +8177,11 @@ actor ServerNetworkManager {
 
         for key in matchingClientKeys(for: clientName, in: Array(lastWindowByClientSession.keys)) {
             if let sessionKey, let win = lastWindowByClientSession[key]?[sessionKey] {
-                let exists = await WindowStatesManager.shared.hasWindow(id: win)
+                #if os(Linux)
+                    let exists = false
+                #else
+                    let exists = await WindowStatesManager.shared.hasWindow(id: win)
+                #endif
                 if exists {
                     mcpRoutingInternalDebugLog("[preferredWindowID] fast path hit: client '\(clientName)' matchedKey '\(key)' window \(win)")
                     return win
@@ -8169,11 +8213,15 @@ actor ServerNetworkManager {
         }
 
         let sortedRecords = freshRecords.sorted { $0.lastSeenAt > $1.lastSeenAt }
-        let windowSnapshot: [(workspaceID: UUID?, instanceNumber: Int?, windowID: Int)] = await MainActor.run {
-            WindowStatesManager.shared.allWindows.map {
-                ($0.workspaceManager.activeWorkspace?.id, $0.workspaceInstanceNumber, $0.windowID)
+        #if os(Linux)
+            let windowSnapshot: [(workspaceID: UUID?, instanceNumber: Int?, windowID: Int)] = []
+        #else
+            let windowSnapshot: [(workspaceID: UUID?, instanceNumber: Int?, windowID: Int)] = await MainActor.run {
+                WindowStatesManager.shared.allWindows.map {
+                    ($0.workspaceManager.activeWorkspace?.id, $0.workspaceInstanceNumber, $0.windowID)
+                }
             }
-        }
+        #endif
 
         for record in sortedRecords {
             guard let ws = record.lastWorkspaceID, let inst = record.lastWorkspaceInstanceNumber else { continue }
@@ -8284,7 +8332,7 @@ actor ServerNetworkManager {
     private func oldestEvictableConnectionID() async -> UUID? {
         let threshold = pressureEvictIdleSeconds
         guard threshold > 0 else { return nil }
-        var best: (id: UUID, idle: TimeInterval)? = nil
+        var best: (id: UUID, idle: TimeInterval)?
         for (id, mgr) in connections {
             // Skip connections doing work
             if let lim = callLimiters[id], await lim.activeCount() > 0 {

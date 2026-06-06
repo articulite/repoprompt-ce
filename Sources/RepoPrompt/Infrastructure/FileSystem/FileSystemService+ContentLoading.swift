@@ -2,12 +2,54 @@ import Cuchardet
 import Foundation
 import UniversalCharsetDetection
 
-private extension String.Encoding {
-    init(ianaCharsetName name: String) {
-        let cfEnc = CFStringConvertIANACharSetNameToEncoding(name as CFString)
-        self.init(rawValue: CFStringConvertEncodingToNSStringEncoding(cfEnc))
+#if os(Linux)
+    private extension String.Encoding {
+        init(ianaCharsetName name: String) {
+            let lower = name.lowercased()
+            switch lower {
+            case "utf-8", "utf8":
+                self = .utf8
+            case "utf-16", "utf16":
+                self = .utf16
+            case "utf-16be", "utf16be":
+                self = .utf16BigEndian
+            case "utf-16le", "utf16le":
+                self = .utf16LittleEndian
+            case "utf-32", "utf32":
+                self = .utf32
+            case "utf-32be", "utf32be":
+                self = .utf32BigEndian
+            case "utf-32le", "utf32le":
+                self = .utf32LittleEndian
+            case "iso-8859-1", "iso88591", "latin1":
+                self = .ascii
+            case "windows-1252", "windows1252", "cp1252":
+                self = .windowsCP1252
+            case "macintosh", "macroman":
+                self = .macOSRoman
+            case "shift_jis", "shiftjis", "sjis":
+                self = .shiftJIS
+            case "euc-jp", "eucjp":
+                self = .japaneseEUC
+            case "iso-2022-jp", "iso2022jp":
+                self = .iso2022JP
+            case "windows-1251", "windows1251", "cp1251":
+                self = .windowsCP1251
+            case "iso-8859-2", "iso88592", "latin2":
+                self = .isoLatin2
+            default:
+                self = .utf8
+            }
+        }
     }
-}
+#else
+    private extension String.Encoding {
+        init(ianaCharsetName name: String) {
+            let cfEnc = CFStringConvertIANACharSetNameToEncoding(name as CFString)
+            self.init(rawValue: CFStringConvertEncodingToNSStringEncoding(cfEnc))
+        }
+    }
+#endif
 
 // MARK: - Encoding detection helpers & priority tables
 
@@ -20,14 +62,18 @@ private func detectEncodingFull(_ data: Data) -> String.Encoding {
     }
 
     // 2) Fallback - Foundation heuristic
-    var lossy = ObjCBool(false)
-    let guess = NSString.stringEncoding(
-        for: data,
-        encodingOptions: [:],
-        convertedString: nil,
-        usedLossyConversion: &lossy
-    )
-    return guess != 0 ? .init(rawValue: guess) : .utf8
+    #if os(Linux)
+        return .utf8
+    #else
+        var lossy = ObjCBool(false)
+        let guess = NSString.stringEncoding(
+            for: data,
+            encodingOptions: [:],
+            convertedString: nil,
+            usedLossyConversion: &lossy
+        )
+        return guess != 0 ? .init(rawValue: guess) : .utf8
+    #endif
 }
 
 private enum ContentReadMode {
@@ -1189,24 +1235,33 @@ extension FileSystemService {
     ]
 
     /// Optional, low‑priority locale‑specific single‑byte encodings
-    static let regionSpecificEncodings: [String.Encoding] = [
-        .shiftJIS, .japaneseEUC, .iso2022JP, // Japanese
-        // Mainland‑China GB18030
-        String.Encoding(
-            rawValue:
-            CFStringConvertEncodingToNSStringEncoding(
-                CFStringEncoding(CFStringEncodings.GB_18030_2000.rawValue)
-            )
-        ),
-        // Traditional‑Chinese Big5
-        String.Encoding(
-            rawValue:
-            CFStringConvertEncodingToNSStringEncoding(
-                CFStringEncoding(CFStringEncodings.big5.rawValue)
-            )
-        ),
-        .windowsCP1251, .isoLatin2 // Cyrillic / Central‑Europe
-    ]
+    static let regionSpecificEncodings: [String.Encoding] = {
+        #if os(Linux)
+            return [
+                .shiftJIS, .japaneseEUC, .iso2022JP, // Japanese
+                .windowsCP1251, .isoLatin2 // Cyrillic / Central‑Europe
+            ]
+        #else
+            return [
+                .shiftJIS, .japaneseEUC, .iso2022JP, // Japanese
+                // Mainland‑China GB18030
+                String.Encoding(
+                    rawValue:
+                    CFStringConvertEncodingToNSStringEncoding(
+                        CFStringEncoding(CFStringEncodings.GB_18030_2000.rawValue)
+                    )
+                ),
+                // Traditional‑Chinese Big5
+                String.Encoding(
+                    rawValue:
+                    CFStringConvertEncodingToNSStringEncoding(
+                        CFStringEncoding(CFStringEncodings.big5.rawValue)
+                    )
+                ),
+                .windowsCP1251, .isoLatin2 // Cyrillic / Central‑Europe
+            ]
+        #endif
+    }()
 
     // MARK: - Extension / filename whitelists
 
@@ -1378,16 +1433,18 @@ extension FileSystemService {
     }
 
     private nonisolated static func detectFileEncoding(in data: Data) -> String.Encoding {
-        var usedLossyConversion = ObjCBool(false)
-        let encodingValue = NSString.stringEncoding(
-            for: data,
-            encodingOptions: [:],
-            convertedString: nil,
-            usedLossyConversion: &usedLossyConversion
-        )
-        if encodingValue != 0 {
-            return String.Encoding(rawValue: encodingValue)
-        }
+        #if !os(Linux)
+            var usedLossyConversion = ObjCBool(false)
+            let encodingValue = NSString.stringEncoding(
+                for: data,
+                encodingOptions: [:],
+                convertedString: nil,
+                usedLossyConversion: &usedLossyConversion
+            )
+            if encodingValue != 0 {
+                return String.Encoding(rawValue: encodingValue)
+            }
+        #endif
 
         let encodings: [String.Encoding] = [
             .utf8,

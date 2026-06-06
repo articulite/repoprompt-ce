@@ -1,5 +1,9 @@
-import Darwin
-import Darwin.POSIX.fcntl
+#if canImport(Darwin)
+    import Darwin
+    import Darwin.POSIX.fcntl
+#elseif os(Linux)
+    import Glibc
+#endif
 import Foundation
 
 enum CodexJSONValue {
@@ -586,27 +590,40 @@ actor CodexAppServerClient {
     }
 
     private static func defaultProcessAppearsAlive(_ process: SpawnedProcess) -> Bool {
-        // Use a non-destructive child-state check so exited/zombie children do not
-        // look healthy, while leaving final reap/cleanup to the normal teardown path.
-        var info = siginfo_t()
-        let waitResult = Darwin.waitid(P_PID, id_t(process.pid), &info, WEXITED | WNOHANG | WNOWAIT)
-        if waitResult == 0, info.si_pid == process.pid {
-            return false
-        }
-        if waitResult == -1, errno == ECHILD {
-            return false
-        }
+        #if os(Linux)
+            let pidState = Glibc.kill(process.pid, 0)
+            if pidState == -1, errno == ESRCH {
+                return false
+            }
+            guard let stdinDescriptor = process.stdinDescriptor else { return false }
+            let descriptorFlags = Glibc.fcntl(stdinDescriptor, F_GETFD)
+            if descriptorFlags == -1, errno == EBADF {
+                return false
+            }
+            return true
+        #else
+            // Use a non-destructive child-state check so exited/zombie children do not
+            // look healthy, while leaving final reap/cleanup to the normal teardown path.
+            var info = siginfo_t()
+            let waitResult = Darwin.waitid(P_PID, id_t(process.pid), &info, WEXITED | WNOHANG | WNOWAIT)
+            if waitResult == 0, info.si_pid == process.pid {
+                return false
+            }
+            if waitResult == -1, errno == ECHILD {
+                return false
+            }
 
-        let pidState = Darwin.kill(process.pid, 0)
-        if pidState == -1, errno == ESRCH {
-            return false
-        }
-        guard let stdinDescriptor = process.stdinDescriptor else { return false }
-        let descriptorFlags = fcntl(stdinDescriptor, F_GETFD)
-        if descriptorFlags == -1, errno == EBADF {
-            return false
-        }
-        return true
+            let pidState = Darwin.kill(process.pid, 0)
+            if pidState == -1, errno == ESRCH {
+                return false
+            }
+            guard let stdinDescriptor = process.stdinDescriptor else { return false }
+            let descriptorFlags = fcntl(stdinDescriptor, F_GETFD)
+            if descriptorFlags == -1, errno == EBADF {
+                return false
+            }
+            return true
+        #endif
     }
 
     func request(method: String, params: [String: Any]?, timeout: TimeInterval? = nil) async throws -> [String: Any] {

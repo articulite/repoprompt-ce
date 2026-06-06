@@ -2,135 +2,153 @@
 import PackageDescription
 
 #if os(Linux)
-let repoPromptExcludes: [String] = [
-    "App",
-    "Support", // Bridging header is macOS-only
-    "Infrastructure/UI",
-    "Infrastructure/SyntaxParsing/ComprehensiveHiglighter.swift",
-    "Features/AgentMode/Views",
-    "Features/AgentMode/ViewModels",
-    "Features/Chat/Views",
-    "Features/Chat/ViewModels",
-    "Features/ContextBuilder/Views",
-    "Features/ContextBuilder/ViewModels",
-    "Features/Diagnostics",
-    "Features/Prompt/Views",
-    "Features/Prompt/ViewModels",
-    "Features/Settings/Views",
-    "Features/Settings/ViewModels",
-    "Features/WorkspaceFiles/Views",
-    "Features/WorkspaceFiles/ViewModels",
-    "Features/Workspaces/Views",
-    "Features/Workspaces/ViewModels"
-]
-
-let repoPromptDependencies: [Target.Dependency] = [
-    "RepoPromptShared",
-    "RepoPromptC", "CSwiftPCRE2", "TreeSitterScannerSupport",
-    .product(name: "Logging", package: "swift-log"),
-    .product(name: "Markdown", package: "swift-markdown"),
-    .product(name: "SwiftyJSON", package: "SwiftyJSON"),
-    .product(name: "MCP", package: "swift-sdk"),
-    .product(name: "SwiftTreeSitter", package: "SwiftTreeSitter"),
-    .product(name: "TreeSitterC", package: "tree-sitter-c"),
-    .product(name: "TreeSitterDart", package: "tree-sitter-dart"),
-    .product(name: "TreeSitterGo", package: "tree-sitter-go"),
-    .product(name: "TreeSitterJava", package: "tree-sitter-java"),
-    .product(name: "TreeSitterJavaScript", package: "tree-sitter-javascript"),
-    .product(name: "TreeSitterPython", package: "tree-sitter-python"),
-    .product(name: "TreeSitterRust", package: "tree-sitter-rust"),
-    .product(name: "TreeSitterTypeScript", package: "tree-sitter-typescript"),
-    .product(name: "TreeSitterRuby", package: "tree-sitter-ruby"),
-    .product(name: "TreeSitterSwift", package: "tree-sitter-swift"),
-    .product(name: "TreeSitterCSharp", package: "tree-sitter-c-sharp"),
-    .product(name: "TreeSitterCPP", package: "tree-sitter-cpp"),
-    .product(name: "TreeSitterPHP", package: "tree-sitter-php"),
-    .product(name: "SwiftAnthropic", package: "SwiftAnthropic"),
-    .product(name: "SwiftOpenAI", package: "SwiftOpenAI"),
-    .product(name: "UniversalCharsetDetection", package: "UniversalCharsetDetection"),
-    .product(name: "Cuchardet", package: "UniversalCharsetDetection"),
-    .product(name: "JSONSchema", package: "JSONSchema"),
-    .product(name: "Ontology", package: "ontology"),
-    .product(name: "RepoPromptClaudeCompatibleProvider", package: "RepoPromptAgentProviders")
-]
-
-let repoPromptTarget = Target.target(
-    name: "RepoPrompt",
-    dependencies: repoPromptDependencies,
-    path: "Sources/RepoPrompt",
-    exclude: repoPromptExcludes,
-    swiftSettings: [
-        .define("DEBUG", .when(configuration: .debug)),
-        .enableUpcomingFeature("BareSlashRegexLiterals")
+    let repoPromptExcludes: [String] = [
+        "App",
+        "Support", // Bridging header is macOS-only
+        "Infrastructure/UI",
+        "Infrastructure/AI",
+        "Infrastructure/Security",
+        "Infrastructure/Networking",
+        "Infrastructure/Persistence",
+        "Infrastructure/SyntaxParsing/ComprehensiveHiglighter.swift",
+        "Infrastructure/VCS/GitStatusActor.swift",
+        "Infrastructure/MCP/ViewModels",
+        "Infrastructure/MCP/Agent",
+        "Infrastructure/MCP/WindowRoutingService.swift",
+        "Infrastructure/MCP/WindowTools",
+        "Infrastructure/MCP/MCPBootstrapLease.swift",
+        "Infrastructure/MCP/MCPRoutingWaiter.swift",
+        "Infrastructure/MCP/OracleExportFileWriter.swift",
+        "Infrastructure/MCP/MCPOracleToolService.swift",
+        "Infrastructure/MCP/MCPPromptRegistry.swift",
+        "Infrastructure/FileSystem/FileSystemService+FSEvents.swift",
+        "Infrastructure/FileSystem/FileSystemService+Testing.swift",
+        "Features/AgentMode/Views",
+        "Features/AgentMode/ViewModels",
+        "Features/AgentMode/Runtime",
+        "Features/AgentMode/Recommendations",
+        "Features/AgentMode/Providers",
+        "Features/AgentMode/Models",
+        "Features/Chat",
+        "Features/ContextBuilder/Views",
+        "Features/ContextBuilder/ViewModels",
+        "Features/Diagnostics",
+        "Features/Prompt",
+        "Features/Settings/Views",
+        "Features/Settings/ViewModels",
+        "Features/WorkspaceFiles",
+        "Features/Workspaces/Views",
+        "Features/Workspaces/ViewModels",
+        "Features/Workspaces/WorkspaceSwitchSessionProviders.swift",
+        "Features/Workspaces/WorkspaceSwitchSessionRegistry.swift",
+        "Features/Workspaces/WorkspaceSwitchingModels.swift"
     ]
-)
 
-let daemonTarget = Target.executableTarget(
-    name: "RepoPromptDaemon",
-    dependencies: ["RepoPromptShared", "RepoPrompt", .product(name: "Logging", package: "swift-log")],
-    path: "Sources/RepoPromptDaemon"
-)
+    let repoPromptDependencies: [Target.Dependency] = [
+        "RepoPromptShared",
+        "RepoPromptC", "CSwiftPCRE2", "TreeSitterScannerSupport",
+        .product(name: "Logging", package: "swift-log"),
+        .product(name: "Markdown", package: "swift-markdown"),
+        .product(name: "SwiftyJSON", package: "SwiftyJSON"),
+        .product(name: "MCP", package: "swift-sdk"),
+        .product(name: "SwiftTreeSitter", package: "SwiftTreeSitter"),
+        .product(name: "TreeSitterC", package: "tree-sitter-c"),
+        .product(name: "TreeSitterDart", package: "tree-sitter-dart"),
+        .product(name: "TreeSitterGo", package: "tree-sitter-go"),
+        .product(name: "TreeSitterJava", package: "tree-sitter-java"),
+        .product(name: "TreeSitterJavaScript", package: "tree-sitter-javascript"),
+        .product(name: "TreeSitterPython", package: "tree-sitter-python"),
+        .product(name: "TreeSitterRust", package: "tree-sitter-rust"),
+        .product(name: "TreeSitterTypeScript", package: "tree-sitter-typescript"),
+        .product(name: "TreeSitterRuby", package: "tree-sitter-ruby"),
+        .product(name: "TreeSitterSwift", package: "tree-sitter-swift"),
+        .product(name: "TreeSitterCSharp", package: "tree-sitter-c-sharp"),
+        .product(name: "TreeSitterCPP", package: "tree-sitter-cpp"),
+        .product(name: "TreeSitterPHP", package: "tree-sitter-php"),
+        .product(name: "UniversalCharsetDetection", package: "UniversalCharsetDetection"),
+        .product(name: "Cuchardet", package: "UniversalCharsetDetection"),
+        .product(name: "JSONSchema", package: "JSONSchema"),
+        .product(name: "Ontology", package: "ontology"),
+        .product(name: "RepoPromptClaudeCompatibleProvider", package: "RepoPromptAgentProviders")
+    ]
 
-let productsList: [Product] = [
-    .executable(name: "RepoPromptDaemon", targets: ["RepoPromptDaemon"]),
-    .executable(name: "repoprompt-mcp", targets: ["RepoPromptMCP"])
-]
+    let repoPromptTarget = Target.target(
+        name: "RepoPrompt",
+        dependencies: repoPromptDependencies,
+        path: "Sources/RepoPrompt",
+        exclude: repoPromptExcludes,
+        swiftSettings: [
+            .define("DEBUG", .when(configuration: .debug)),
+            .enableUpcomingFeature("BareSlashRegexLiterals")
+        ]
+    )
+
+    let daemonTarget = Target.executableTarget(
+        name: "RepoPromptDaemon",
+        dependencies: ["RepoPromptShared", "RepoPrompt", .product(name: "Logging", package: "swift-log")],
+        path: "Sources/RepoPromptDaemon"
+    )
+
+    let productsList: [Product] = [
+        .executable(name: "RepoPromptDaemon", targets: ["RepoPromptDaemon"]),
+        .executable(name: "repoprompt-mcp", targets: ["RepoPromptMCP"])
+    ]
 #else
-let repoPromptExcludes: [String] = []
+    let repoPromptExcludes: [String] = []
 
-let repoPromptDependencies: [Target.Dependency] = [
-    "RepoPromptShared",
-    "RepoPromptC", "CSwiftPCRE2", "TreeSitterScannerSupport",
-    "Sparkle",
-    .product(name: "Logging", package: "swift-log"),
-    .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
-    .product(name: "MarkdownUI", package: "swift-markdown-ui"),
-    .product(name: "Markdown", package: "swift-markdown"),
-    .product(name: "SwiftyJSON", package: "SwiftyJSON"),
-    .product(name: "MCP", package: "swift-sdk"),
-    .product(name: "SwiftTreeSitter", package: "SwiftTreeSitter"),
-    .product(name: "TreeSitterC", package: "tree-sitter-c"),
-    .product(name: "TreeSitterDart", package: "tree-sitter-dart"),
-    .product(name: "TreeSitterGo", package: "tree-sitter-go"),
-    .product(name: "TreeSitterJava", package: "tree-sitter-java"),
-    .product(name: "TreeSitterJavaScript", package: "tree-sitter-javascript"),
-    .product(name: "TreeSitterPython", package: "tree-sitter-python"),
-    .product(name: "TreeSitterRust", package: "tree-sitter-rust"),
-    .product(name: "TreeSitterTypeScript", package: "tree-sitter-typescript"),
-    .product(name: "TreeSitterRuby", package: "tree-sitter-ruby"),
-    .product(name: "TreeSitterSwift", package: "tree-sitter-swift"),
-    .product(name: "TreeSitterCSharp", package: "tree-sitter-c-sharp"),
-    .product(name: "TreeSitterCPP", package: "tree-sitter-cpp"),
-    .product(name: "TreeSitterPHP", package: "tree-sitter-php"),
-    .product(name: "SwiftAnthropic", package: "SwiftAnthropic"),
-    .product(name: "SwiftOpenAI", package: "SwiftOpenAI"),
-    .product(name: "Neon", package: "Neon"),
-    .product(name: "UniversalCharsetDetection", package: "UniversalCharsetDetection"),
-    .product(name: "Cuchardet", package: "UniversalCharsetDetection"),
-    .product(name: "JSONSchema", package: "JSONSchema"),
-    .product(name: "Ontology", package: "ontology"),
-    .product(name: "RepoPromptClaudeCompatibleProvider", package: "RepoPromptAgentProviders")
-]
-
-let repoPromptTarget = Target.executableTarget(
-    name: "RepoPrompt",
-    dependencies: repoPromptDependencies,
-    path: "Sources/RepoPrompt",
-    exclude: repoPromptExcludes,
-    swiftSettings: [
-        .define("DEBUG", .when(configuration: .debug)),
-        .enableUpcomingFeature("BareSlashRegexLiterals"),
-        .unsafeFlags([
-            "-import-objc-header", "Sources/RepoPrompt/Support/RepoPrompt-Bridging-Header.h",
-            "-disable-bridging-pch"
-        ])
+    let repoPromptDependencies: [Target.Dependency] = [
+        "RepoPromptShared",
+        "RepoPromptC", "CSwiftPCRE2", "TreeSitterScannerSupport",
+        "Sparkle",
+        .product(name: "Logging", package: "swift-log"),
+        .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
+        .product(name: "MarkdownUI", package: "swift-markdown-ui"),
+        .product(name: "Markdown", package: "swift-markdown"),
+        .product(name: "SwiftyJSON", package: "SwiftyJSON"),
+        .product(name: "MCP", package: "swift-sdk"),
+        .product(name: "SwiftTreeSitter", package: "SwiftTreeSitter"),
+        .product(name: "TreeSitterC", package: "tree-sitter-c"),
+        .product(name: "TreeSitterDart", package: "tree-sitter-dart"),
+        .product(name: "TreeSitterGo", package: "tree-sitter-go"),
+        .product(name: "TreeSitterJava", package: "tree-sitter-java"),
+        .product(name: "TreeSitterJavaScript", package: "tree-sitter-javascript"),
+        .product(name: "TreeSitterPython", package: "tree-sitter-python"),
+        .product(name: "TreeSitterRust", package: "tree-sitter-rust"),
+        .product(name: "TreeSitterTypeScript", package: "tree-sitter-typescript"),
+        .product(name: "TreeSitterRuby", package: "tree-sitter-ruby"),
+        .product(name: "TreeSitterSwift", package: "tree-sitter-swift"),
+        .product(name: "TreeSitterCSharp", package: "tree-sitter-c-sharp"),
+        .product(name: "TreeSitterCPP", package: "tree-sitter-cpp"),
+        .product(name: "TreeSitterPHP", package: "tree-sitter-php"),
+        .product(name: "SwiftAnthropic", package: "SwiftAnthropic"),
+        .product(name: "SwiftOpenAI", package: "SwiftOpenAI"),
+        .product(name: "Neon", package: "Neon"),
+        .product(name: "UniversalCharsetDetection", package: "UniversalCharsetDetection"),
+        .product(name: "Cuchardet", package: "UniversalCharsetDetection"),
+        .product(name: "JSONSchema", package: "JSONSchema"),
+        .product(name: "Ontology", package: "ontology"),
+        .product(name: "RepoPromptClaudeCompatibleProvider", package: "RepoPromptAgentProviders")
     ]
-)
 
-let productsList: [Product] = [
-    .executable(name: "RepoPrompt", targets: ["RepoPrompt"]),
-    .executable(name: "repoprompt-mcp", targets: ["RepoPromptMCP"])
-]
+    let repoPromptTarget = Target.executableTarget(
+        name: "RepoPrompt",
+        dependencies: repoPromptDependencies,
+        path: "Sources/RepoPrompt",
+        exclude: repoPromptExcludes,
+        swiftSettings: [
+            .define("DEBUG", .when(configuration: .debug)),
+            .enableUpcomingFeature("BareSlashRegexLiterals"),
+            .unsafeFlags([
+                "-import-objc-header", "Sources/RepoPrompt/Support/RepoPrompt-Bridging-Header.h",
+                "-disable-bridging-pch"
+            ])
+        ]
+    )
+
+    let productsList: [Product] = [
+        .executable(name: "RepoPrompt", targets: ["RepoPrompt"]),
+        .executable(name: "repoprompt-mcp", targets: ["RepoPromptMCP"])
+    ]
 #endif
 
 // Base targets list common to all platforms
@@ -158,9 +176,9 @@ var baseTargets: [Target] = [
 ]
 
 #if os(Linux)
-baseTargets.append(daemonTarget)
+    baseTargets.append(daemonTarget)
 #else
-baseTargets.append(.binaryTarget(name: "Sparkle", path: "Vendor/Sparkle/Sparkle.xcframework"))
+    baseTargets.append(.binaryTarget(name: "Sparkle", path: "Vendor/Sparkle/Sparkle.xcframework"))
 #endif
 
 let package = Package(

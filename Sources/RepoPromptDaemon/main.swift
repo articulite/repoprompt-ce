@@ -22,8 +22,11 @@ print("[RepoPromptDaemon] Starting background services...")
 // Avoid process-killing SIGPIPE when connection pipes close
 signal(SIGPIPE, SIG_IGN)
 
-// Start the bootstrap socket server and connection handlers
-Task {
+// Initialize and register MCP services headlessly
+Task { @MainActor in
+    print("[RepoPromptDaemon] Initializing headless services...")
+    RepoPromptDaemonInitializer.initializeServices()
+
     print("[RepoPromptDaemon] Launching ServerController listener...")
     await ServerController.shared.startServer()
     print("[RepoPromptDaemon] Listener successfully launched and active.")

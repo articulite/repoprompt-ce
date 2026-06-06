@@ -1,4 +1,8 @@
-import Darwin
+#if canImport(Darwin)
+    import Darwin
+#elseif canImport(Glibc)
+    import Glibc
+#endif
 import Foundation
 
 /// Separate diagnostic logger for deadlock debugging (independent of config.enableDebugLogging)

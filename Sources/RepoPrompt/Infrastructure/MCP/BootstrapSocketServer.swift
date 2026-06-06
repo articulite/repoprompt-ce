@@ -7,10 +7,9 @@
 //
 
 #if os(Linux)
-import Glibc
-typealias Darwin = Glibc
+    import Glibc
 #else
-import Darwin
+    import Darwin
 #endif
 import Dispatch
 import Foundation
@@ -279,8 +278,8 @@ actor BootstrapSocketServer {
 
         // Disable SIGPIPE
         #if !os(Linux)
-        var noSigPipe: Int32 = 1
-        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
+            var noSigPipe: Int32 = 1
+            setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
         #endif
 
         // Bind to socket path
@@ -718,8 +717,8 @@ actor BootstrapSocketServer {
 
         // Disable SIGPIPE on client socket
         #if !os(Linux)
-        var noSigPipe: Int32 = 1
-        setsockopt(clientFD, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
+            var noSigPipe: Int32 = 1
+            setsockopt(clientFD, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
         #endif
 
         // Read handshake request (with timeout)
@@ -937,11 +936,19 @@ actor BootstrapSocketServer {
 
     /// Returns the peer PID for a connected unix domain socket, if available.
     private static func peerPID(for fd: Int32) -> Int? {
-        var pid: pid_t = 0
-        var len = socklen_t(MemoryLayout<pid_t>.size)
-        let result = getsockopt(fd, SOL_LOCAL, LOCAL_PEERPID, &pid, &len)
-        guard result == 0, pid > 0 else { return nil }
-        return Int(pid)
+        #if os(Linux)
+            var cred = ucred()
+            var len = socklen_t(MemoryLayout<ucred>.size)
+            let result = getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &cred, &len)
+            guard result == 0, cred.pid > 0 else { return nil }
+            return Int(cred.pid)
+        #else
+            var pid: pid_t = 0
+            var len = socklen_t(MemoryLayout<pid_t>.size)
+            let result = getsockopt(fd, SOL_LOCAL, LOCAL_PEERPID, &pid, &len)
+            guard result == 0, pid > 0 else { return nil }
+            return Int(pid)
+        #endif
     }
 
     /// Sends a handshake response to the client socket.
