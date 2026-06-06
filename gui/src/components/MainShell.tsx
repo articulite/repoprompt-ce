@@ -2,12 +2,23 @@ import React, { useState, useEffect } from "react";
 import {
   FolderTree, MessageSquare, Terminal, Settings,
   ChevronDown, Plus, RefreshCw, LogOut, Code, GitBranch,
-  HardDrive
+  HardDrive, Folder, FolderOpen, File, FileText, FileCode,
+  ChevronRight
 } from "lucide-react";
 import { mcpClient } from "../mcpClient";
 import { safeParseJSON } from "../utils";
 import ChatPanel from "./ChatPanel";
 import AgentModePanel from "./AgentModePanel";
+
+interface TreeNode {
+  id: string;
+  name: string;
+  depth: number;
+  isFolder: boolean;
+  rawLine: string;
+  isSelected?: boolean;
+  hasCodeMap?: boolean;
+}
 
 interface MainShellProps {
   workspaceName: string;
@@ -25,6 +36,7 @@ export default function MainShell({ workspaceName, onExitWorkspace, isConnected 
   const [gitBranch, setGitBranch] = useState<string>("main");
   const [showAddFolder, setShowAddFolder] = useState(false);
   const [newFolderPath, setNewFolderPath] = useState("");
+  const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
   const [roots, setRoots] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -279,16 +291,184 @@ export default function MainShell({ workspaceName, onExitWorkspace, isConnected 
             </button>
           </div>
 
-          {/* File Tree Pre-block */}
+          {/* File Tree Container */}
           <div className="file-tree-container">
             {loadingTree ? (
               <div className="tree-loading">
                 <RefreshCw size={18} className="animate-spin text-muted" />
                 <span>Reading directory tree...</span>
               </div>
-            ) : (
-              <pre className="file-tree-code">{fileTree}</pre>
-            )}
+            ) : (() => {
+              // Parse the ASCII tree
+              const parseAsciiTree = (treeStr: string): TreeNode[] => {
+                if (!treeStr) return [];
+                const lines = treeStr.split("\n");
+                const nodes: TreeNode[] = [];
+
+                for (let i = 0; i < lines.length; i++) {
+                  const line = lines[i];
+                  if (!line.trim()) continue;
+
+                  const match = line.match(/^([│├└─┌\s]*)(.*)$/);
+                  if (!match) continue;
+
+                  const prefix = match[1];
+                  let name = match[2].trim();
+                  if (!name) continue;
+
+                  const depth = prefix ? Math.floor(prefix.length / 4) : 0;
+
+                  let isSelected = false;
+                  let hasCodeMap = false;
+                  if (name.endsWith(" *")) {
+                    name = name.slice(0, -2);
+                    isSelected = true;
+                  }
+                  if (name.endsWith(" +")) {
+                    name = name.slice(0, -2);
+                    hasCodeMap = true;
+                  }
+
+                  nodes.push({
+                    id: `${i}-${name}`,
+                    name,
+                    depth,
+                    isFolder: false,
+                    rawLine: line,
+                    isSelected,
+                    hasCodeMap
+                  });
+                }
+
+                for (let i = 0; i < nodes.length; i++) {
+                  const node = nodes[i];
+                  const nextNode = nodes[i + 1];
+                  node.isFolder = nextNode ? nextNode.depth > node.depth : false;
+                }
+
+                return nodes;
+              };
+
+              const getFileIcon = (name: string, isFolder: boolean, isOpen: boolean) => {
+                if (isFolder) {
+                  return isOpen ? (
+                    <FolderOpen size={13} className="folder-icon open" />
+                  ) : (
+                    <Folder size={13} className="folder-icon closed" />
+                  );
+                }
+
+                const ext = name.split(".").pop()?.toLowerCase();
+                switch (ext) {
+                  case "swift":
+                    return <FileCode size={13} className="file-icon swift" />;
+                  case "tsx":
+                  case "ts":
+                  case "jsx":
+                  case "js":
+                    return <FileCode size={13} className="file-icon js" />;
+                  case "css":
+                  case "html":
+                    return <FileCode size={13} className="file-icon html" />;
+                  case "json":
+                  case "yml":
+                  case "yaml":
+                  case "toml":
+                    return <FileText size={13} className="file-icon config" />;
+                  case "md":
+                  case "txt":
+                    return <FileText size={13} className="file-icon doc" />;
+                  default:
+                    return <File size={13} className="file-icon default" />;
+                }
+              };
+
+              const handleFolderToggle = (nodeId: string, e: React.MouseEvent) => {
+                e.stopPropagation();
+                setCollapsedNodes(prev => {
+                  const next = new Set(prev);
+                  if (next.has(nodeId)) {
+                    next.delete(nodeId);
+                  } else {
+                    next.add(nodeId);
+                  }
+                  return next;
+                });
+              };
+
+              const handleFileClick = (node: TreeNode) => {
+                navigator.clipboard.writeText(node.name);
+                // Dispatch a custom event to notify listeners (e.g. ChatPanel or AgentModePanel)
+                // that a file was clicked to allow autocomplete injection.
+                const event = new CustomEvent("fileClickedInExplorer", { detail: { name: node.name } });
+                window.dispatchEvent(event);
+              };
+
+              const allNodes = parseAsciiTree(fileTree);
+              const visibleNodes: TreeNode[] = [];
+              let currentCollapsedDepth = -1;
+
+              for (const node of allNodes) {
+                if (currentCollapsedDepth !== -1) {
+                  if (node.depth > currentCollapsedDepth) {
+                    continue;
+                  } else {
+                    currentCollapsedDepth = -1;
+                  }
+                }
+
+                visibleNodes.push(node);
+
+                if (node.isFolder && collapsedNodes.has(node.id)) {
+                  currentCollapsedDepth = node.depth;
+                }
+              }
+
+              if (visibleNodes.length === 0) {
+                return <div className="tree-empty">Workspace is empty.</div>;
+              }
+
+              return (
+                <div className="interactive-tree">
+                  {visibleNodes.map((node) => {
+                    const isCollapsed = collapsedNodes.has(node.id);
+                    const isOpen = node.isFolder && !isCollapsed;
+
+                    return (
+                      <div
+                        key={node.id}
+                        className={`tree-row ${node.isSelected ? 'selected' : ''}`}
+                        style={{ paddingLeft: `${node.depth * 10 + 4}px` }}
+                        onClick={() => node.isFolder ? null : handleFileClick(node)}
+                      >
+                        {node.isFolder ? (
+                          <button
+                            type="button"
+                            className="chevron-btn"
+                            onClick={(e) => handleFolderToggle(node.id, e)}
+                          >
+                            {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+                          </button>
+                        ) : (
+                          <span className="chevron-placeholder" />
+                        )}
+
+                        <span className="node-icon" onClick={(e) => node.isFolder ? handleFolderToggle(node.id, e) : null}>
+                          {getFileIcon(node.name, node.isFolder, isOpen)}
+                        </span>
+
+                        <span className="node-name" onClick={(e) => node.isFolder ? handleFolderToggle(node.id, e) : null}>
+                          {node.name}
+                        </span>
+
+                        {node.isSelected && <span className="badge-selected">★</span>}
+                        {node.hasCodeMap && <span className="badge-codemap" title="Codemap indexed">CM</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         </div>
       </aside>
