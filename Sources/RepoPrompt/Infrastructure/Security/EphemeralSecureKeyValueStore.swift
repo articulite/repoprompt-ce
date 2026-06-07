@@ -39,7 +39,8 @@
 
             if let envVar = envVarName(for: key),
                let envValue = ProcessInfo.processInfo.environment[envVar],
-               !envValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+               !envValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
                 return envValue
             }
 
@@ -48,20 +49,20 @@
 
         private func envVarName(for key: String) -> String? {
             switch key {
-            case "AnthropicAPI": return "ANTHROPIC_API_KEY"
-            case "OpenAIAPI": return "OPENAI_API_KEY"
-            case "GeminiAPI": return "GEMINI_API_KEY"
-            case "OpenRouterAPI": return "OPENROUTER_API_KEY"
-            case "OllamaURL": return "OLLAMA_URL"
-            case "AzureAPI": return "AZURE_API_KEY"
-            case "DeepSeekAPI": return "DEEPSEEK_API_KEY"
-            case "CustomProviderAPI": return "CUSTOM_PROVIDER_API_KEY"
-            case "FireworksAPI": return "FIREWORKS_API_KEY"
-            case "GrokAPI": return "GROK_API_KEY"
-            case "GroqAPI": return "GROQ_API_KEY"
-            case "ClaudeCodeAPI": return "CLAUDE_CODE_API_KEY"
-            case "ZAIAPI": return "ZAI_API_KEY"
-            default: return nil
+            case "AnthropicAPI": "ANTHROPIC_API_KEY"
+            case "OpenAIAPI": "OPENAI_API_KEY"
+            case "GeminiAPI": "GEMINI_API_KEY"
+            case "OpenRouterAPI": "OPENROUTER_API_KEY"
+            case "OllamaURL": "OLLAMA_URL"
+            case "AzureAPI": "AZURE_API_KEY"
+            case "DeepSeekAPI": "DEEPSEEK_API_KEY"
+            case "CustomProviderAPI": "CUSTOM_PROVIDER_API_KEY"
+            case "FireworksAPI": "FIREWORKS_API_KEY"
+            case "GrokAPI": "GROK_API_KEY"
+            case "GroqAPI": "GROQ_API_KEY"
+            case "ClaudeCodeAPI": "CLAUDE_CODE_API_KEY"
+            case "ZAIAPI": "ZAI_API_KEY"
+            default: nil
             }
         }
 
