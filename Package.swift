@@ -7,7 +7,6 @@ import PackageDescription
         "Support", // Bridging header is macOS-only
         "Infrastructure/UI",
         "Infrastructure/AI",
-        "Infrastructure/Security",
         "Infrastructure/Networking",
         "Infrastructure/Persistence",
         "Infrastructure/SyntaxParsing/ComprehensiveHiglighter.swift",

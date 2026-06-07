@@ -11,14 +11,17 @@ final class AppSettingsMCPService: Service {
 
     private let store: GlobalSettingsStore
     private let notificationCenter: NotificationCenter
+    private let keyManager: KeyManager
 
     @MainActor
     init(
         store: GlobalSettingsStore? = nil,
-        notificationCenter: NotificationCenter = .default
+        notificationCenter: NotificationCenter = .default,
+        keyManager: KeyManager? = nil
     ) {
         self.store = store ?? GlobalSettingsStore.shared
         self.notificationCenter = notificationCenter
+        self.keyManager = keyManager ?? KeyManager()
     }
 
     var tools: [Tool] {
@@ -58,7 +61,7 @@ final class AppSettingsMCPService: Service {
                 inputSchema: .object(
                     properties: [
                         "op": .string(description: "Operation.", enum: ["list", "get", "set", "options"]),
-                        "group": .string(description: "Settings group.", enum: ["ui", "prompt_packaging", "models", "context_builder", "mcp", "code_maps", "file_system", "agent_mode"]),
+                        "group": .string(description: "Settings group.", enum: ["ui", "prompt_packaging", "models", "context_builder", "mcp", "code_maps", "file_system", "agent_mode", "keys"]),
                         "key": .string(description: "Allowlisted setting key (required for set/options)."),
                         "keys": .array(description: "Multiple keys (get only).", items: .string()),
                         "value": .anyOf([.boolean(), .integer(), .number(), .string(), .null]),
@@ -121,6 +124,19 @@ final class AppSettingsMCPService: Service {
         ])
     }
 
+    private func providerType(forKey key: String) -> AIProviderType? {
+        switch key {
+        case "keys.openrouter": .openRouter
+        case "keys.openai": .openAI
+        case "keys.anthropic": .anthropic
+        case "keys.gemini": .gemini
+        case "keys.deepseek": .deepseek
+        case "keys.grok": .grok
+        case "keys.groq": .groq
+        default: nil
+        }
+    }
+
     private func get(_ args: [String: Value]) async throws -> Value {
         let key = try parseOptionalString(args["key"], parameter: "key")
         let keys = try parseOptionalStringArray(args["keys"], parameter: "keys")
@@ -143,9 +159,17 @@ final class AppSettingsMCPService: Service {
             definitions = try AppSettingsMCPRegistry.definitions(inGroup: group)
         }
 
-        let values = await MainActor.run {
-            definitions.reduce(into: [String: Value]()) { result, definition in
-                result[definition.key] = definition.read(store)
+        var values = [String: Value]()
+        for definition in definitions {
+            if let provider = providerType(forKey: definition.key) {
+                let apiKey = try await keyManager.getAPIKey(for: provider)
+                let hasKey = apiKey != nil && !apiKey!.isEmpty
+                values[definition.key] = hasKey ? .string("••••••••") : .null
+            } else {
+                let val = await MainActor.run {
+                    definition.read(store)
+                }
+                values[definition.key] = val
             }
         }
 
@@ -171,27 +195,72 @@ final class AppSettingsMCPService: Service {
         let definition = try AppSettingsMCPRegistry.definition(forKey: key)
         let normalizedValue = try definition.validate(rawValue)
 
-        let result = try await MainActor.run { () throws -> (oldValue: Value, newValue: Value, changed: Bool, applied: Bool) in
-            let oldValue = definition.read(store)
-            let changed = !Self.valuesEqual(oldValue, normalizedValue)
-            if changed {
-                try definition.write(store, normalizedValue)
-                definition.afterWrite?(store, normalizedValue, notificationCenter)
-            }
-            let newValue = definition.read(store)
-            definition.afterSet?(store, newValue, changed, notificationCenter)
-            return (oldValue, newValue, changed, changed)
-        }
+        if let provider = providerType(forKey: definition.key) {
+            let oldAPIKey = try await keyManager.getAPIKey(for: provider)
+            let oldHasKey = oldAPIKey != nil && !oldAPIKey!.isEmpty
+            let oldValue: Value = oldHasKey ? .string("••••••••") : .null
 
-        return .object([
-            "op": .string("set"),
-            "status": .string("ok"),
-            "key": .string(definition.key),
-            "old_value": result.oldValue,
-            "new_value": result.newValue,
-            "changed": .bool(result.changed),
-            "applied": .bool(result.applied)
-        ])
+            var changed = false
+            var applied = false
+            if case let .string(newValueStr) = normalizedValue {
+                if newValueStr == "••••••••" {
+                    // No change to key
+                    changed = false
+                } else if newValueStr.isEmpty {
+                    if oldHasKey {
+                        try await keyManager.deleteAPIKey(for: provider)
+                        changed = true
+                        applied = true
+                    }
+                } else {
+                    try await keyManager.saveAPIKey(newValueStr, for: provider)
+                    changed = true
+                    applied = true
+                }
+            } else if case .null = normalizedValue {
+                if oldHasKey {
+                    try await keyManager.deleteAPIKey(for: provider)
+                    changed = true
+                    applied = true
+                }
+            }
+
+            let newAPIKey = try await keyManager.getAPIKey(for: provider)
+            let newHasKey = newAPIKey != nil && !newAPIKey!.isEmpty
+            let newValue: Value = newHasKey ? .string("••••••••") : .null
+
+            return .object([
+                "op": .string("set"),
+                "status": .string("ok"),
+                "key": .string(definition.key),
+                "old_value": oldValue,
+                "new_value": newValue,
+                "changed": .bool(changed),
+                "applied": .bool(applied)
+            ])
+        } else {
+            let result = try await MainActor.run { () throws -> (oldValue: Value, newValue: Value, changed: Bool, applied: Bool) in
+                let oldValue = definition.read(store)
+                let changed = !Self.valuesEqual(oldValue, normalizedValue)
+                if changed {
+                    try definition.write(store, normalizedValue)
+                    definition.afterWrite?(store, normalizedValue, notificationCenter)
+                }
+                let newValue = definition.read(store)
+                definition.afterSet?(store, newValue, changed, notificationCenter)
+                return (oldValue, newValue, changed, changed)
+            }
+
+            return .object([
+                "op": .string("set"),
+                "status": .string("ok"),
+                "key": .string(definition.key),
+                "old_value": result.oldValue,
+                "new_value": result.newValue,
+                "changed": .bool(result.changed),
+                "applied": .bool(result.applied)
+            ])
+        }
     }
 
     private func options(_ args: [String: Value]) async throws -> Value {
@@ -525,7 +594,7 @@ private struct AppSettingDefinition: @unchecked Sendable {
 }
 
 private enum AppSettingsMCPRegistry {
-    static let groups = ["ui", "prompt_packaging", "models", "context_builder", "mcp", "code_maps", "file_system", "agent_mode"]
+    static let groups = ["ui", "prompt_packaging", "models", "context_builder", "mcp", "code_maps", "file_system", "agent_mode", "keys"]
 
     private static let appearanceModes = ["System", "Light", "Dark"]
     private static let filePathDisplayOptions = ["Full", "Relative"]
@@ -858,6 +927,69 @@ private enum AppSettingsMCPRegistry {
             read: { .bool($0.showEmptyFolders()) },
             write: { try $0.setShowEmptyFolders(requiredBool(from: $1)) },
             afterWrite: fileSystemPreferencesDidChangeHook(key: "file_system.show_empty_folders")
+        ),
+        freeformStringSetting(
+            key: "keys.openrouter",
+            group: "keys",
+            label: "OpenRouter API Key",
+            description: "API key used to authenticate with OpenRouter.",
+            maxLength: 4096,
+            read: { _ in .string("") },
+            write: { _, _ in }
+        ),
+        freeformStringSetting(
+            key: "keys.openai",
+            group: "keys",
+            label: "OpenAI API Key",
+            description: "API key used to authenticate with OpenAI.",
+            maxLength: 4096,
+            read: { _ in .string("") },
+            write: { _, _ in }
+        ),
+        freeformStringSetting(
+            key: "keys.anthropic",
+            group: "keys",
+            label: "Anthropic API Key",
+            description: "API key used to authenticate with Anthropic.",
+            maxLength: 4096,
+            read: { _ in .string("") },
+            write: { _, _ in }
+        ),
+        freeformStringSetting(
+            key: "keys.gemini",
+            group: "keys",
+            label: "Gemini API Key",
+            description: "API key used to authenticate with Gemini.",
+            maxLength: 4096,
+            read: { _ in .string("") },
+            write: { _, _ in }
+        ),
+        freeformStringSetting(
+            key: "keys.deepseek",
+            group: "keys",
+            label: "DeepSeek API Key",
+            description: "API key used to authenticate with DeepSeek.",
+            maxLength: 4096,
+            read: { _ in .string("") },
+            write: { _, _ in }
+        ),
+        freeformStringSetting(
+            key: "keys.grok",
+            group: "keys",
+            label: "Grok API Key",
+            description: "API key used to authenticate with Grok.",
+            maxLength: 4096,
+            read: { _ in .string("") },
+            write: { _, _ in }
+        ),
+        freeformStringSetting(
+            key: "keys.groq",
+            group: "keys",
+            label: "Groq API Key",
+            description: "API key used to authenticate with Groq.",
+            maxLength: 4096,
+            read: { _ in .string("") },
+            write: { _, _ in }
         )
     ] + debugDefinitions
 
