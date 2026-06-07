@@ -182,11 +182,10 @@ final class TooltipOverlayController {
             forName: NSWindow.willCloseNotification,
             object: owner,
             queue: .main
-        ) // ensure main thread
-            { [weak self] _ in
-                Task { @MainActor [weak self] in
-                    self?.hide()
-                }
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.hide()
+            }
         }
     }
 
