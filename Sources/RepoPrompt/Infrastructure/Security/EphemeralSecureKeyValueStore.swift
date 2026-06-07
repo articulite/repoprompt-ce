@@ -30,16 +30,39 @@
             for key: String,
             accessMode: KeychainAccessMode
         ) throws -> String {
-            let data = try withLock {
-                guard let data = entries[key] else {
-                    throw KeychainService.KeychainError.itemNotFound
+            if let data = withLock({ entries[key] }) {
+                guard let value = String(data: data, encoding: .utf8) else {
+                    throw KeychainService.KeychainError.invalidData
                 }
-                return data
+                return value
             }
-            guard let value = String(data: data, encoding: .utf8) else {
-                throw KeychainService.KeychainError.invalidData
+
+            if let envVar = envVarName(for: key),
+               let envValue = ProcessInfo.processInfo.environment[envVar],
+               !envValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return envValue
             }
-            return value
+
+            throw KeychainService.KeychainError.itemNotFound
+        }
+
+        private func envVarName(for key: String) -> String? {
+            switch key {
+            case "AnthropicAPI": return "ANTHROPIC_API_KEY"
+            case "OpenAIAPI": return "OPENAI_API_KEY"
+            case "GeminiAPI": return "GEMINI_API_KEY"
+            case "OpenRouterAPI": return "OPENROUTER_API_KEY"
+            case "OllamaURL": return "OLLAMA_URL"
+            case "AzureAPI": return "AZURE_API_KEY"
+            case "DeepSeekAPI": return "DEEPSEEK_API_KEY"
+            case "CustomProviderAPI": return "CUSTOM_PROVIDER_API_KEY"
+            case "FireworksAPI": return "FIREWORKS_API_KEY"
+            case "GrokAPI": return "GROK_API_KEY"
+            case "GroqAPI": return "GROQ_API_KEY"
+            case "ClaudeCodeAPI": return "CLAUDE_CODE_API_KEY"
+            case "ZAIAPI": return "ZAI_API_KEY"
+            default: return nil
+            }
         }
 
         func delete(
