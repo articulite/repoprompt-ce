@@ -60,14 +60,15 @@ final class AppSettingsMCPService: Service {
                 """,
                 inputSchema: .object(
                     properties: [
-                        "op": .string(description: "Operation.", enum: ["list", "get", "set", "options"]),
+                        "op": .string(description: "Operation.", enum: ["list", "get", "set", "options", "test_connection"]),
                         "group": .string(description: "Settings group.", enum: ["ui", "prompt_packaging", "models", "context_builder", "mcp", "code_maps", "file_system", "agent_mode", "keys"]),
                         "key": .string(description: "Allowlisted setting key (required for set/options)."),
                         "keys": .array(description: "Multiple keys (get only).", items: .string()),
                         "value": .anyOf([.boolean(), .integer(), .number(), .string(), .null]),
                         "agent": .string(description: "Filter options by CLI backend."),
                         "limit": .integer(description: "Maximum options returned (1–200)."),
-                        "detailed": .boolean(description: "Include descriptions and model metadata.")
+                        "detailed": .boolean(description: "Include descriptions and model metadata."),
+                        "provider": .string(description: "Provider name to test (required for test_connection).")
                     ],
                     required: ["op"]
                 ),
@@ -86,7 +87,7 @@ final class AppSettingsMCPService: Service {
         guard let rawOp = args["op"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
               let op = AppSettingsOperation(rawValue: rawOp)
         else {
-            throw MCPError.invalidParams("app_settings requires op='list', 'get', 'set', or 'options'.")
+            throw MCPError.invalidParams("app_settings requires op='list', 'get', 'set', 'options', or 'test_connection'.")
         }
 
         switch op {
@@ -98,6 +99,8 @@ final class AppSettingsMCPService: Service {
             return try await set(args)
         case .options:
             return try await options(args)
+        case .test_connection:
+            return try await testConnection(args)
         }
     }
 
@@ -351,6 +354,228 @@ final class AppSettingsMCPService: Service {
         return .object(envelope)
     }
 
+    private func testConnection(_ args: [String: Value]) async throws -> Value {
+        guard let provider = try parseOptionalString(args["provider"], parameter: "provider") else {
+            throw MCPError.invalidParams("app_settings op='test_connection' requires 'provider'.")
+        }
+
+        let normalized = provider.lowercased()
+
+        #if os(macOS)
+            if normalized == "opencode" {
+                do {
+                    _ = try await OpenCodeACPModelPollingService.shared.discoverOnce(workspacePath: nil)
+                    UserDefaults.standard.set(true, forKey: "OpenCodeCLIConnected")
+                    NotificationCenter.default.post(name: NSNotification.Name("openCodeConnectionChanged"), object: nil)
+
+                    await MainActor.run {
+                        MCPActiveClientTracker.shared.addActive(client: "opencode")
+                    }
+
+                    return .object([
+                        "status": .string("success"),
+                        "message": .string("OpenCode tested successfully! Status is active.")
+                    ])
+                } catch {
+                    UserDefaults.standard.set(false, forKey: "OpenCodeCLIConnected")
+                    NotificationCenter.default.post(name: NSNotification.Name("openCodeConnectionChanged"), object: nil)
+
+                    await MainActor.run {
+                        MCPActiveClientTracker.shared.removeActive(client: "opencode")
+                    }
+
+                    return .object([
+                        "status": .string("failure"),
+                        "message": .string(error.localizedDescription)
+                    ])
+                }
+            } else if normalized == "cursor" {
+                do {
+                    _ = try await CursorACPModelPollingService.shared.discoverOnce(workspacePath: nil)
+                    UserDefaults.standard.set(true, forKey: "CursorCLIConnected")
+
+                    await MainActor.run {
+                        MCPActiveClientTracker.shared.addActive(client: "cursor")
+                    }
+
+                    return .object([
+                        "status": .string("success"),
+                        "message": .string("Cursor tested successfully! Status is active.")
+                    ])
+                } catch {
+                    UserDefaults.standard.set(false, forKey: "CursorCLIConnected")
+
+                    await MainActor.run {
+                        MCPActiveClientTracker.shared.removeActive(client: "cursor")
+                    }
+
+                    return .object([
+                        "status": .string("failure"),
+                        "message": .string(error.localizedDescription)
+                    ])
+                }
+            } else if normalized == "claudecode" || normalized == "claude" {
+                let collector = CLIProcessLogCollector()
+                let provider = ClaudeCodeProvider(logCollector: collector)
+                do {
+                    let ok = try await provider.testConnection(timeout: 30)
+                    await provider.dispose()
+                    UserDefaults.standard.set(ok, forKey: "ClaudeCodeConnected")
+
+                    await MainActor.run {
+                        if ok {
+                            MCPActiveClientTracker.shared.addActive(client: "claude-code")
+                        } else {
+                            MCPActiveClientTracker.shared.removeActive(client: "claude-code")
+                        }
+                    }
+
+                    if ok {
+                        return .object([
+                            "status": .string("success"),
+                            "message": .string("Claude Code tested successfully! Status is active.")
+                        ])
+                    } else {
+                        return .object([
+                            "status": .string("failure"),
+                            "message": .string("Claude Code health check returned an empty response.")
+                        ])
+                    }
+                } catch {
+                    await provider.dispose()
+                    UserDefaults.standard.set(false, forKey: "ClaudeCodeConnected")
+
+                    await MainActor.run {
+                        MCPActiveClientTracker.shared.removeActive(client: "claude-code")
+                    }
+
+                    return .object([
+                        "status": .string("failure"),
+                        "message": .string(error.localizedDescription)
+                    ])
+                }
+            } else if normalized == "codex" {
+                let collector = CLIProcessLogCollector()
+                let provider = CodexCLIProvider(logCollector: collector)
+                do {
+                    let ok = try await provider.testConnection(timeout: 30)
+                    await provider.dispose()
+                    UserDefaults.standard.set(ok, forKey: "CodexCLIConnected")
+
+                    await MainActor.run {
+                        if ok {
+                            MCPActiveClientTracker.shared.addActive(client: "repoprompt-cli")
+                        } else {
+                            MCPActiveClientTracker.shared.removeActive(client: "repoprompt-cli")
+                        }
+                    }
+
+                    if ok {
+                        return .object([
+                            "status": .string("success"),
+                            "message": .string("Codex tested successfully! Status is active.")
+                        ])
+                    } else {
+                        return .object([
+                            "status": .string("failure"),
+                            "message": .string("Codex health check returned an empty response.")
+                        ])
+                    }
+                } catch {
+                    await provider.dispose()
+                    UserDefaults.standard.set(false, forKey: "CodexCLIConnected")
+
+                    await MainActor.run {
+                        MCPActiveClientTracker.shared.removeActive(client: "repoprompt-cli")
+                    }
+
+                    return .object([
+                        "status": .string("failure"),
+                        "message": .string(error.localizedDescription)
+                    ])
+                }
+            } else {
+                throw MCPError.invalidParams("Unsupported provider for test_connection: '\(provider)'. Supported: openCode, cursor, claudeCode, codex.")
+            }
+        #else
+            let isConnected = await MainActor.run {
+                if normalized == "opencode" {
+                    return MCPActiveClientTracker.shared.isConnected("opencode")
+                } else if normalized == "cursor" {
+                    return MCPActiveClientTracker.shared.isConnected("cursor")
+                } else if normalized == "claudecode" || normalized == "claude" {
+                    return MCPActiveClientTracker.shared.isConnected("claude-code")
+                } else if normalized == "codex" {
+                    return MCPActiveClientTracker.shared.isConnected("repoprompt-cli")
+                }
+                return false
+            }
+
+            if isConnected {
+                let key = if normalized == "opencode" { "OpenCodeCLIConnected" }
+                else if normalized == "cursor" { "CursorCLIConnected" }
+                else if normalized == "claudecode" || normalized == "claude" { "ClaudeCodeConnected" }
+                else { "CodexCLIConnected" }
+
+                UserDefaults.standard.set(true, forKey: key)
+                if normalized == "opencode" {
+                    NotificationCenter.default.post(name: NSNotification.Name("openCodeConnectionChanged"), object: nil)
+                }
+                return .object([
+                    "status": .string("success"),
+                    "message": .string("\(provider) tested successfully! Active connection detected.")
+                ])
+            }
+
+            let exeName: String
+            if normalized == "opencode" { exeName = "opencode" }
+            else if normalized == "cursor" { exeName = "cursor" }
+            else if normalized == "claudecode" || normalized == "claude" { exeName = "claude" }
+            else if normalized == "codex" { exeName = "rp-cli" }
+            else {
+                throw MCPError.invalidParams("Unsupported provider for test_connection: '\(provider)'. Supported: openCode, cursor, claudeCode, codex.")
+            }
+
+            let resolved = CommandPathResolver.resolve(exeName, environment: ProcessInfo.processInfo.environment, additionalPaths: [])
+            let launchable = CommandPathResolver.launchability(of: resolved) == .launchable
+
+            let key = if normalized == "opencode" { "OpenCodeCLIConnected" }
+            else if normalized == "cursor" { "CursorCLIConnected" }
+            else if normalized == "claudecode" || normalized == "claude" { "ClaudeCodeConnected" }
+            else { "CodexCLIConnected" }
+
+            UserDefaults.standard.set(launchable, forKey: key)
+            if normalized == "opencode" {
+                NotificationCenter.default.post(name: NSNotification.Name("openCodeConnectionChanged"), object: nil)
+            }
+
+            await MainActor.run {
+                let clientID = if normalized == "opencode" { "opencode" }
+                else if normalized == "cursor" { "cursor" }
+                else if normalized == "claudecode" || normalized == "claude" { "claude-code" }
+                else { "repoprompt-cli" }
+
+                if launchable {
+                    MCPActiveClientTracker.shared.addActive(client: clientID)
+                } else {
+                    MCPActiveClientTracker.shared.removeActive(client: clientID)
+                }
+            }
+
+            if launchable {
+                return .object([
+                    "status": .string("success"),
+                    "message": .string("\(provider) executable found at \(resolved) and is launchable.")
+                ])
+            } else {
+                return .object([
+                    "status": .string("failure"),
+                    "message": .string("Could not find active connection or launchable executable for '\(exeName)' on PATH.")
+                ])
+            }
+        #endif
+    }
+
     private static func iso8601Timestamp() -> String {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
@@ -439,6 +664,7 @@ private enum AppSettingsOperation: String {
     case get
     case set
     case options
+    case test_connection
 }
 
 private enum AppSettingValueType: String {
@@ -990,6 +1216,55 @@ private enum AppSettingsMCPRegistry {
             maxLength: 4096,
             read: { _ in .string("") },
             write: { _, _ in }
+        ),
+        boolSetting(
+            key: "agent_mode.opencode_connected",
+            group: "agent_mode",
+            label: "OpenCode Connected",
+            description: "Read-only: Whether OpenCode is currently connected as an MCP client.",
+            read: { _ in .bool(UserDefaults.standard.bool(forKey: "OpenCodeCLIConnected") || MCPActiveClientTracker.shared.isConnected("opencode")) },
+            write: { _, value in
+                if let boolVal = value.boolValue {
+                    UserDefaults.standard.set(boolVal, forKey: "OpenCodeCLIConnected")
+                    NotificationCenter.default.post(name: NSNotification.Name("openCodeConnectionChanged"), object: nil)
+                }
+            }
+        ),
+        boolSetting(
+            key: "agent_mode.cursor_connected",
+            group: "agent_mode",
+            label: "Cursor Connected",
+            description: "Read-only: Whether Cursor is currently connected as an MCP client.",
+            read: { _ in .bool(UserDefaults.standard.bool(forKey: "CursorCLIConnected") || MCPActiveClientTracker.shared.isConnected("cursor")) },
+            write: { _, value in
+                if let boolVal = value.boolValue {
+                    UserDefaults.standard.set(boolVal, forKey: "CursorCLIConnected")
+                }
+            }
+        ),
+        boolSetting(
+            key: "agent_mode.claude_code_connected",
+            group: "agent_mode",
+            label: "Claude Code Connected",
+            description: "Read-only: Whether Claude Code is currently connected as an MCP client.",
+            read: { _ in .bool(UserDefaults.standard.bool(forKey: "ClaudeCodeConnected") || MCPActiveClientTracker.shared.isConnected("claude-code")) },
+            write: { _, value in
+                if let boolVal = value.boolValue {
+                    UserDefaults.standard.set(boolVal, forKey: "ClaudeCodeConnected")
+                }
+            }
+        ),
+        boolSetting(
+            key: "agent_mode.codex_connected",
+            group: "agent_mode",
+            label: "Codex Connected",
+            description: "Read-only: Whether Codex is currently connected as an MCP client.",
+            read: { _ in .bool(UserDefaults.standard.bool(forKey: "CodexCLIConnected") || MCPActiveClientTracker.shared.isConnected("repoprompt-cli")) },
+            write: { _, value in
+                if let boolVal = value.boolValue {
+                    UserDefaults.standard.set(boolVal, forKey: "CodexCLIConnected")
+                }
+            }
         )
     ] + debugDefinitions
 

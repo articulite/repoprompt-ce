@@ -53,12 +53,12 @@ export default function SettingsPanel({ isConnected, roots, onRefreshRoots }: Se
   const [compatSonnet_Custom, setCompatSonnet_Custom] = useState("custom-sonnet-v1");
 
   const [providerConnections, setProviderConnections] = useState<Record<string, boolean>>({
-    codex: true,
-    claudeCode: true,
+    codex: false,
+    claudeCode: false,
     glmZAI: false,
     kimi: false,
     customCompatible: false,
-    openCode: true,
+    openCode: false,
     cursor: false
   });
 
@@ -179,6 +179,31 @@ export default function SettingsPanel({ isConnected, roots, onRefreshRoots }: Se
       fetchWorkspaces();
     }
   }, [isConnected]);
+
+  useEffect(() => {
+    const newConns = { ...providerConnections };
+    let changed = false;
+    settings.forEach(s => {
+      if (s.key === "agent_mode.opencode_connected") {
+        newConns.openCode = s.currentValue === true;
+        changed = true;
+      } else if (s.key === "agent_mode.cursor_connected") {
+        newConns.cursor = s.currentValue === true;
+        changed = true;
+      } else if (s.key === "agent_mode.claude_code_connected") {
+        newConns.claudeCode = s.currentValue === true;
+        changed = true;
+      } else if (s.key === "agent_mode.codex_connected") {
+        newConns.codex = s.currentValue === true;
+        changed = true;
+      }
+    });
+    if (changed) {
+      if (JSON.stringify(newConns) !== JSON.stringify(providerConnections)) {
+        setProviderConnections(newConns);
+      }
+    }
+  }, [settings]);
 
   // We fetch current settings values using op="get" for each registered group including keys
   const fetchAllSettings = async () => {
@@ -763,18 +788,35 @@ export default function SettingsPanel({ isConnected, roots, onRefreshRoots }: Se
   // --- RENDERING HELPERS FOR Visual/Interactive Settings Tabs Parity ---
 
   const renderCLIProviders = () => {
-    const handleTestConnection = (id: string) => {
+    const handleTestConnection = async (id: string) => {
       setTestingProvider(id);
       setTestingResultText(null);
-      setTimeout(() => {
-        setTestingProvider(null);
-        if (id === "codex" || id === "claudeCode" || id === "openCode") {
-          setTestingResultText(`${id === "codex" ? "Codex CLI" : id === "claudeCode" ? "Claude Code" : "OpenCode"} tested successfully! Status is active.`);
-          setProviderConnections(prev => ({ ...prev, [id]: true }));
+      try {
+        let providerName = id;
+        if (id === "claudeCode") providerName = "claudecode";
+        const res = await mcpClient.callTool("app_settings", {
+          op: "test_connection",
+          provider: providerName
+        });
+        if (res && !res.isError && res.content && res.content[0]?.text) {
+          const parsed = JSON.parse(res.content[0].text);
+          if (parsed.status === "success") {
+            setTestingResultText(parsed.message || "Connection tested successfully!");
+            setProviderConnections(prev => ({ ...prev, [id]: true }));
+            fetchAllSettings();
+          } else {
+            setTestingResultText(parsed.message || "Warning: Connection failed.");
+            setProviderConnections(prev => ({ ...prev, [id]: false }));
+            fetchAllSettings();
+          }
         } else {
           setTestingResultText(`Warning: Connection to ${id} failed. Check executable logs or provider keys.`);
         }
-      }, 1500);
+      } catch (err: any) {
+        setTestingResultText(`Error testing connection: ${err.message || err}`);
+      } finally {
+        setTestingProvider(null);
+      }
     };
 
     return (
@@ -817,7 +859,7 @@ export default function SettingsPanel({ isConnected, roots, onRefreshRoots }: Se
                 </button>
                 <button
                   className="btn btn-danger"
-                  onClick={() => setProviderConnections(prev => ({ ...prev, codex: !prev.codex }))}
+                  onClick={() => handleUpdateSetting("agent_mode.codex_connected", !providerConnections.codex)}
                 >
                   {providerConnections.codex ? "Sign Out" : "Log In"}
                 </button>
@@ -870,7 +912,7 @@ export default function SettingsPanel({ isConnected, roots, onRefreshRoots }: Se
                 </button>
                 <button
                   className="btn btn-danger"
-                  onClick={() => setProviderConnections(prev => ({ ...prev, claudeCode: !prev.claudeCode }))}
+                  onClick={() => handleUpdateSetting("agent_mode.claude_code_connected", !providerConnections.claudeCode)}
                 >
                   {providerConnections.claudeCode ? "Sign Out" : "Connect"}
                 </button>
@@ -1014,14 +1056,22 @@ export default function SettingsPanel({ isConnected, roots, onRefreshRoots }: Se
               <span className="provider-card-description">
                 Direct integration with local open source coding models via OpenCode MCP servers.
               </span>
-              <button
-                className="btn btn-secondary flex items-center gap-2"
-                disabled={testingProvider === "openCode"}
-                onClick={() => handleTestConnection("openCode")}
-              >
-                {testingProvider === "openCode" ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-                Test Connection
-              </button>
+              <div className="flex gap-2">
+                <button
+                  className="btn btn-secondary flex items-center gap-2"
+                  disabled={testingProvider === "openCode"}
+                  onClick={() => handleTestConnection("openCode")}
+                >
+                  {testingProvider === "openCode" ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                  Test Connection
+                </button>
+                <button
+                  className="btn btn-danger"
+                  onClick={() => handleUpdateSetting("agent_mode.opencode_connected", !providerConnections.openCode)}
+                >
+                  {providerConnections.openCode ? "Disconnect" : "Connect"}
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -1046,14 +1096,22 @@ export default function SettingsPanel({ isConnected, roots, onRefreshRoots }: Se
               <span className="provider-card-description">
                 Connects sub-agents to Cursor's editing processes via local IPC sockets.
               </span>
-              <button
-                className="btn btn-secondary flex items-center gap-2"
-                disabled={testingProvider === "cursor"}
-                onClick={() => handleTestConnection("cursor")}
-              >
-                {testingProvider === "cursor" ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-                Test Connection
-              </button>
+              <div className="flex gap-2">
+                <button
+                  className="btn btn-secondary flex items-center gap-2"
+                  disabled={testingProvider === "cursor"}
+                  onClick={() => handleTestConnection("cursor")}
+                >
+                  {testingProvider === "cursor" ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                  Test Connection
+                </button>
+                <button
+                  className="btn btn-danger"
+                  onClick={() => handleUpdateSetting("agent_mode.cursor_connected", !providerConnections.cursor)}
+                >
+                  {providerConnections.cursor ? "Disconnect" : "Connect"}
+                </button>
+              </div>
             </div>
           )}
         </div>

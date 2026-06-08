@@ -3542,6 +3542,9 @@ actor ServerNetworkManager {
         activeToolOwnerByWindow.removeAll()
         activeToolNameByWindow.removeAll()
         connectionStats.removeAll()
+        Task { @MainActor in
+            MCPActiveClientTracker.shared.clear()
+        }
     }
 
     // MARK: - Termination & Kill Semantics
@@ -8008,6 +8011,10 @@ actor ServerNetworkManager {
         // Once admitted, the authoritative map is set — we can drop the pending label.
         pendingConnections.removeValue(forKey: connectionID)
 
+        Task { @MainActor in
+            MCPActiveClientTracker.shared.addActive(client: clientID)
+        }
+
         // 4) Initialize stats if not already present
         if connectionStats[connectionID] == nil {
             connectionStats[connectionID] = ConnectionStats(
@@ -8023,9 +8030,16 @@ actor ServerNetworkManager {
         if let clientID = clientIDByConnection[connectionID] {
             var set = activeConnectionsByClient[clientID] ?? []
             set.remove(connectionID)
+            let isLast = set.isEmpty
             if set.isEmpty { activeConnectionsByClient.removeValue(forKey: clientID) }
             else { activeConnectionsByClient[clientID] = set }
             clientIDByConnection.removeValue(forKey: connectionID)
+
+            if isLast {
+                Task { @MainActor in
+                    MCPActiveClientTracker.shared.removeActive(client: clientID)
+                }
+            }
         }
     }
 
@@ -8557,5 +8571,34 @@ actor AsyncLimiter {
         await acquirePermit()
         defer { releasePermit() }
         return try await op()
+    }
+}
+
+@MainActor
+final class MCPActiveClientTracker {
+    static let shared = MCPActiveClientTracker()
+    private(set) var activeClients: Set<String> = []
+
+    func addActive(client: String) {
+        activeClients.insert(client)
+        NotificationCenter.default.post(name: NSNotification.Name("openCodeConnectionChanged"), object: nil)
+    }
+
+    func removeActive(client: String) {
+        activeClients.remove(client)
+        NotificationCenter.default.post(name: NSNotification.Name("openCodeConnectionChanged"), object: nil)
+    }
+
+    func clear() {
+        activeClients.removeAll()
+        NotificationCenter.default.post(name: NSNotification.Name("openCodeConnectionChanged"), object: nil)
+    }
+
+    func isConnected(_ name: String) -> Bool {
+        activeClients.contains { client in
+            MCPClientIdentity.matches(client, name) ||
+                client.lowercased().contains(name.lowercased()) ||
+                name.lowercased().contains(client.lowercased())
+        }
     }
 }
