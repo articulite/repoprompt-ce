@@ -1119,6 +1119,242 @@ export default function SettingsPanel({ isConnected, roots, onRefreshRoots }: Se
     );
   };
 
+  const renderContextBuilder = () => {
+    const tokenBudget = Number(getSettingValue("context_builder.token_budget", 160000));
+    const enhancementMode = getSettingValue("context_builder.enhancement_mode", "fullRewrite");
+    const allowClarifyingQuestions = getSettingValue("context_builder.allow_clarifying_questions", true);
+    const allowClarifyingQuestionsForMCP = getSettingValue("context_builder.allow_clarifying_questions_mcp", false);
+    const questionTimeoutSeconds = Number(getSettingValue("context_builder.question_timeout_seconds", 300));
+    const planTokenBudget = Number(getSettingValue("context_builder.plan_token_budget", 120000));
+    const autoGeneratePlan = getSettingValue("context_builder.auto_generate_plan", false);
+
+    const contextBuilderAgent = getSettingValue("context_builder.agent", "claudeCode");
+    const contextBuilderModel = getSettingValue("context_builder.model", "Oracle");
+
+    const getEnhancementDescription = (mode: string) => {
+      switch (mode) {
+        case "fullRewrite":
+          return "Agent rewrites the prompt while building context.";
+        case "augment":
+          return "Keeps your instructions and appends relevant context.";
+        case "preserve":
+          return "Only updates file selection, leaves instructions unchanged.";
+        default:
+          return "";
+      }
+    };
+
+    return (
+      <div className="context-builder-settings animate-fade-in flex flex-col gap-4">
+        {/* About Card */}
+        <div className="settings-section-card">
+          <div className="settings-section-card-title">
+            <Brain size={16} className="text-accent" /> About Context Builder
+          </div>
+          <span className="settings-section-card-desc">
+            Context Builder explores your codebase and generates an optimized prompt. It can be invoked from the UI or via the MCP tool.
+          </span>
+          <button
+            className="dashboard-row flex justify-between items-center w-full mt-2"
+            onClick={() => setActiveSection("agent_models")}
+          >
+            <div className="flex items-center gap-3">
+              <Sparkles size={16} className="text-accent" />
+              <div className="text-left">
+                <div className="font-semibold text-xs text-primary">Context Builder Agent</div>
+                <div className="text-xxs text-secondary">
+                  Currently: {contextBuilderAgent === "claudeCode" ? "Claude Code" : contextBuilderAgent === "codexExec" ? "Codex Exec" : "OpenCode"} · {contextBuilderModel}. Configure this in Agent Models.
+                </div>
+              </div>
+            </div>
+            <ChevronRight size={14} className="text-secondary" />
+          </button>
+        </div>
+
+        {/* Shared Settings */}
+        <div className="settings-section-card">
+          <div className="settings-section-card-title">Shared Settings</div>
+          <span className="settings-section-card-desc">Token budgets and prompt enhancement behavior.</span>
+
+          <div className="flex flex-col gap-4 mt-3">
+            {/* Context Budget Slider */}
+            <div className="form-input-group">
+              <div className="flex justify-between items-center">
+                <label>Context Budget</label>
+                <span className="text-xs text-secondary font-mono">{(tokenBudget / 1000).toFixed(0)}k</span>
+              </div>
+              <input
+                type="range"
+                min={10000}
+                max={300000}
+                step={5000}
+                className="w-full slider-accent"
+                value={tokenBudget}
+                onChange={(e) => handleUpdateSetting("context_builder.token_budget", Number(e.target.value))}
+              />
+              <span className="form-subtext text-xxs text-muted">
+                Target prompt size. Use ~160k for ChatGPT/web exports by default, or lower for a more token-efficient prompt.
+              </span>
+            </div>
+
+            <div className="border-bottom" style={{ margin: "4px 0" }} />
+
+            {/* Enhancement Mode Segmented Choice */}
+            <div className="form-input-group">
+              <label>Prompt Enhancement</label>
+              <div className="segmented-picker mt-1">
+                {(["fullRewrite", "augment", "preserve"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    className={`segmented-option ${enhancementMode === mode ? "active" : ""}`}
+                    onClick={() => handleUpdateSetting("context_builder.enhancement_mode", mode)}
+                  >
+                    {mode === "fullRewrite" ? "Rewrite" : mode === "augment" ? "Augment" : "Preserve"}
+                  </button>
+                ))}
+              </div>
+              <span className="form-subtext text-xxs text-muted">
+                {getEnhancementDescription(enhancementMode)}
+              </span>
+            </div>
+
+            <div className="border-bottom" style={{ margin: "4px 0" }} />
+
+            {/* Question Timeout Segmented Choice */}
+            <div className="form-input-group">
+              <label>Question Timeout</label>
+              <div className="segmented-picker mt-1">
+                {[30, 60, 120, 300].map((timeout) => (
+                  <button
+                    key={timeout}
+                    className={`segmented-option ${questionTimeoutSeconds === timeout ? "active" : ""}`}
+                    onClick={() => handleUpdateSetting("context_builder.question_timeout_seconds", timeout)}
+                  >
+                    {timeout < 60 ? `${timeout} sec` : `${timeout / 60} min`}
+                  </button>
+                ))}
+              </div>
+              <span className="form-subtext text-xxs text-muted">
+                How long to wait for your response before the agent continues on its own. Applies to both clarifying questions and Agent Mode ask_user.
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* UI Runs */}
+        <div className="settings-section-card">
+          <div className="settings-section-card-title">UI Runs</div>
+          <span className="settings-section-card-desc">When you click &ldquo;Run&rdquo; in the Context Builder panel.</span>
+
+          <div className="flex flex-col gap-4 mt-3">
+            {/* Allow Clarifying Questions UI */}
+            <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-xs font-semibold text-primary">Allow Clarifying Questions</span>
+                <span className="text-xxs text-secondary">
+                  Agent can ask questions ({questionTimeoutSeconds < 60 ? `${questionTimeoutSeconds} sec` : `${questionTimeoutSeconds / 60} min`} timeout)
+                </span>
+              </div>
+              <label className="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={allowClarifyingQuestions}
+                  onChange={(e) => handleUpdateSetting("context_builder.allow_clarifying_questions", e.target.checked)}
+                />
+                <span className="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div className="border-bottom" style={{ margin: "4px 0" }} />
+
+            {/* Follow-up Analysis */}
+            <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-xs font-semibold text-primary">Follow-up Analysis</span>
+                <span className="text-xxs text-secondary">
+                  Auto-run plan/review/question after Context Builder completes
+                </span>
+              </div>
+              <label className="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={autoGeneratePlan}
+                  onChange={(e) => handleUpdateSetting("context_builder.auto_generate_plan", e.target.checked)}
+                />
+                <span className="toggle-slider"></span>
+              </label>
+            </div>
+
+            {/* Follow-up / Planning Budget (displayed only when autoGeneratePlan is true) */}
+            {autoGeneratePlan && (
+              <div className="p-3 rounded-lg border mt-2 flex flex-col gap-3" style={{ backgroundColor: "rgba(249, 115, 22, 0.03)", borderColor: "rgba(249, 115, 22, 0.15)" }}>
+                <div className="form-input-group mb-0">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-semibold text-secondary">Analysis Budget</span>
+                    <span className="text-xs font-semibold text-secondary font-mono">{(planTokenBudget / 1000).toFixed(0)}k</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={40000}
+                    max={300000}
+                    step={5000}
+                    className="w-full slider-accent"
+                    value={planTokenBudget}
+                    onChange={(e) => handleUpdateSetting("context_builder.plan_token_budget", Number(e.target.value))}
+                  />
+                </div>
+                <div className="flex items-center gap-2 text-xxs text-secondary">
+                  <Brain size={12} className="text-secondary" />
+                  <span>
+                    Analysis uses the Oracle Model: {getSettingValue("models.planning_model", "Claude Sonnet 4.5")}. Change it in Agent Models.
+                  </span>
+                </div>
+                <p className="text-xxs text-muted leading-relaxed mb-0">
+                  After context building, a separate API call generates a plan, review, or answer.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* MCP Runs */}
+        <div className="settings-section-card">
+          <div className="settings-section-card-title">MCP Runs</div>
+          <span className="settings-section-card-desc">When called via the Context Builder MCP tool from Claude Code, Cursor, etc.</span>
+
+          <div className="flex flex-col gap-4 mt-3">
+            {/* Allow Clarifying Questions MCP */}
+            <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-xs font-semibold text-primary">Allow Clarifying Questions</span>
+                <span className="text-xxs text-secondary">
+                  Agent can ask questions during MCP runs
+                </span>
+              </div>
+              <label className="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={allowClarifyingQuestionsForMCP}
+                  onChange={(e) => handleUpdateSetting("context_builder.allow_clarifying_questions_mcp", e.target.checked)}
+                />
+                <span className="toggle-slider"></span>
+              </label>
+            </div>
+
+            {allowClarifyingQuestionsForMCP && (
+              <div className="p-3 rounded-lg border mt-2 flex items-center gap-2.5 text-xxs" style={{ backgroundColor: "rgba(249, 115, 22, 0.08)", borderColor: "rgba(249, 115, 22, 0.2)", color: "var(--warning-color)" }}>
+                <AlertTriangle size={14} className="flex-shrink-0 text-warning" />
+                <span>
+                  You must be watching RepoPrompt to respond. Questions timeout after {questionTimeoutSeconds < 60 ? `${questionTimeoutSeconds} sec` : `${questionTimeoutSeconds / 60} min`}.
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderAgentModels = () => {
     return (
       <div className="agent-models-settings animate-fade-in flex flex-col gap-4">
@@ -2577,7 +2813,10 @@ export default function SettingsPanel({ isConnected, roots, onRefreshRoots }: Se
               renderAgentPermissions()
             ) : activeSection === "agent_workflows" ? (
               renderAgentWorkflows()
+            ) : activeSection === "context_builder" ? (
+              renderContextBuilder()
             ) : activeSection === "mcp_tools" ? (
+
               renderMCPTools()
             ) : activeSection === "model_presets" ? (
               renderModelPresets()

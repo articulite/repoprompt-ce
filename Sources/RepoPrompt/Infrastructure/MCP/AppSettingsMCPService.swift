@@ -1053,6 +1053,129 @@ private enum AppSettingsMCPRegistry {
                 store.globalContextBuilderAgentSelection().agentRaw.flatMap(AgentProviderKind.init(rawValue:))
             }
         ),
+        numberSetting(
+            key: "context_builder.token_budget",
+            group: "context_builder",
+            label: "Context Budget",
+            description: "Target prompt size. Use ~160k for ChatGPT/web exports by default, or lower for a more token-efficient prompt.",
+            range: 10000.0 ... 300_000.0,
+            read: { store in
+                let wsID = WindowStatesManager.shared.allWindows.first?.workspaceManager.activeWorkspace?.id ?? UUID()
+                let settings = store.chatSettings(for: wsID)
+                return .double(Double(settings.discoveryTokenBudget ?? ContextBuilderDefaults.discoveryTokenBudget))
+            },
+            write: { store, value in
+                guard let wsID = WindowStatesManager.shared.allWindows.first?.workspaceManager.activeWorkspace?.id else { return }
+                var settings = store.chatSettings(for: wsID)
+                settings.discoveryTokenBudget = Int(value.doubleValue ?? Double(ContextBuilderDefaults.discoveryTokenBudget))
+                store.updateChatSettings(settings, commit: true)
+            }
+        ),
+        stringEnumSetting(
+            key: "context_builder.enhancement_mode",
+            group: "context_builder",
+            label: "Prompt Enhancement Mode",
+            description: "How the agent refines the user's instructions with discovered context.",
+            allowedValues: ["fullRewrite", "augment", "preserve"],
+            read: { store in
+                let wsID = WindowStatesManager.shared.allWindows.first?.workspaceManager.activeWorkspace?.id ?? UUID()
+                let settings = store.chatSettings(for: wsID)
+                return .string(settings.discoveryEnhancementMode ?? ContextBuilderDefaults.enhancementMode.rawValue)
+            },
+            write: { store, value in
+                guard let wsID = WindowStatesManager.shared.allWindows.first?.workspaceManager.activeWorkspace?.id else { return }
+                var settings = store.chatSettings(for: wsID)
+                settings.discoveryEnhancementMode = value.stringValue ?? ContextBuilderDefaults.enhancementMode.rawValue
+                store.updateChatSettings(settings, commit: true)
+            }
+        ),
+        boolSetting(
+            key: "context_builder.allow_clarifying_questions",
+            group: "context_builder",
+            label: "Allow Clarifying Questions (UI)",
+            description: "Whether the Context Builder agent can ask clarifying questions during UI-triggered runs.",
+            read: { store in
+                let wsID = WindowStatesManager.shared.allWindows.first?.workspaceManager.activeWorkspace?.id ?? UUID()
+                let settings = store.chatSettings(for: wsID)
+                return .bool(settings.discoveryAllowClarifyingQuestions ?? ContextBuilderDefaults.allowClarifyingQuestions)
+            },
+            write: { store, value in
+                guard let wsID = WindowStatesManager.shared.allWindows.first?.workspaceManager.activeWorkspace?.id else { return }
+                var settings = store.chatSettings(for: wsID)
+                settings.discoveryAllowClarifyingQuestions = value.boolValue ?? ContextBuilderDefaults.allowClarifyingQuestions
+                store.updateChatSettings(settings, commit: true)
+            }
+        ),
+        boolSetting(
+            key: "context_builder.allow_clarifying_questions_mcp",
+            group: "context_builder",
+            label: "Allow Clarifying Questions (MCP)",
+            description: "Whether the Context Builder agent can ask clarifying questions during MCP-triggered runs.",
+            read: { store in
+                let wsID = WindowStatesManager.shared.allWindows.first?.workspaceManager.activeWorkspace?.id ?? UUID()
+                let settings = store.chatSettings(for: wsID)
+                return .bool(settings.discoveryAllowClarifyingQuestionsForMCP ?? ContextBuilderDefaults.allowClarifyingQuestionsForMCP)
+            },
+            write: { store, value in
+                guard let wsID = WindowStatesManager.shared.allWindows.first?.workspaceManager.activeWorkspace?.id else { return }
+                var settings = store.chatSettings(for: wsID)
+                settings.discoveryAllowClarifyingQuestionsForMCP = value.boolValue ?? ContextBuilderDefaults.allowClarifyingQuestionsForMCP
+                store.updateChatSettings(settings, commit: true)
+            }
+        ),
+        numberSetting(
+            key: "context_builder.question_timeout_seconds",
+            group: "context_builder",
+            label: "Question Timeout",
+            description: "Timeout in seconds for clarifying question responses.",
+            range: 30.0 ... 300.0,
+            read: { store in
+                let wsID = WindowStatesManager.shared.allWindows.first?.workspaceManager.activeWorkspace?.id ?? UUID()
+                let settings = store.chatSettings(for: wsID)
+                return .double(settings.discoveryQuestionTimeoutSeconds ?? ContextBuilderDefaults.questionTimeoutSeconds)
+            },
+            write: { store, value in
+                guard let wsID = WindowStatesManager.shared.allWindows.first?.workspaceManager.activeWorkspace?.id else { return }
+                var settings = store.chatSettings(for: wsID)
+                settings.discoveryQuestionTimeoutSeconds = value.doubleValue ?? ContextBuilderDefaults.questionTimeoutSeconds
+                store.updateChatSettings(settings, commit: true)
+            }
+        ),
+        numberSetting(
+            key: "context_builder.plan_token_budget",
+            group: "context_builder",
+            label: "Analysis Budget",
+            description: "Token budget for the auto-generated plan or follow-up analysis.",
+            range: 40000.0 ... 300_000.0,
+            read: { store in
+                let wsID = WindowStatesManager.shared.allWindows.first?.workspaceManager.activeWorkspace?.id ?? UUID()
+                let settings = store.chatSettings(for: wsID)
+                return .double(Double(settings.discoveryPlanTokenBudget ?? ContextBuilderDefaults.planTokenBudget))
+            },
+            write: { store, value in
+                guard let wsID = WindowStatesManager.shared.allWindows.first?.workspaceManager.activeWorkspace?.id else { return }
+                var settings = store.chatSettings(for: wsID)
+                settings.discoveryPlanTokenBudget = Int(value.doubleValue ?? Double(ContextBuilderDefaults.planTokenBudget))
+                store.updateChatSettings(settings, commit: true)
+            }
+        ),
+        boolSetting(
+            key: "context_builder.auto_generate_plan",
+            group: "context_builder",
+            label: "Auto-Run Analysis",
+            description: "Whether the agent automatically generates a plan/review/question after building context.",
+            read: { store in
+                let wsID = WindowStatesManager.shared.allWindows.first?.workspaceManager.activeWorkspace?.id ?? UUID()
+                let settings = store.chatSettings(for: wsID)
+                return .bool(settings.discoveryAutoGeneratePlan ?? ContextBuilderDefaults.autoGeneratePlan)
+            },
+            write: { store, value in
+                guard let wsID = WindowStatesManager.shared.allWindows.first?.workspaceManager.activeWorkspace?.id else { return }
+                var settings = store.chatSettings(for: wsID)
+                settings.discoveryAutoGeneratePlan = value.boolValue ?? ContextBuilderDefaults.autoGeneratePlan
+                store.updateChatSettings(settings, commit: true)
+            }
+        ),
 
         // General MCP preferences (not MCP tool ACLs or server lifecycle
         // controls). The internal recommendation-dismissal flag

@@ -120,6 +120,54 @@ export default function ContextBuilderPanel({ isConnected }: { isConnected: bool
     }
   }, []);
 
+  const updateDaemonSetting = async (key: string, value: any) => {
+    if (!isConnected) return;
+    try {
+      await mcpClient.callTool("app_settings", { op: "set", key, value });
+    } catch (err) {
+      console.error(`Failed to update daemon setting ${key}:`, err);
+    }
+  };
+
+  // Fetch settings from the daemon when connected
+  useEffect(() => {
+    if (!isConnected) return;
+
+    const fetchDaemonSettings = async () => {
+      try {
+        const res = await mcpClient.callTool("app_settings", { op: "get", group: "context_builder" });
+        if (res && !res.isError && res.content && res.content[0]?.text) {
+          const parsed = safeParseJSON(res.content[0].text);
+          if (parsed && typeof parsed === "object" && parsed.status === "ok" && parsed.values) {
+            const vals = parsed.values;
+            if (vals["context_builder.token_budget"] !== undefined) {
+              setTokenBudget(Number(vals["context_builder.token_budget"]));
+            }
+            if (vals["context_builder.enhancement_mode"] !== undefined) {
+              setEnhancementMode(vals["context_builder.enhancement_mode"]);
+            }
+            if (vals["context_builder.allow_clarifying_questions"] !== undefined) {
+              setAllowQuestions(Boolean(vals["context_builder.allow_clarifying_questions"]));
+            }
+            if (vals["context_builder.auto_generate_plan"] !== undefined) {
+              setAutoPlan(Boolean(vals["context_builder.auto_generate_plan"]));
+            }
+            if (vals["context_builder.agent"] !== undefined) {
+              setBuilderAgent(vals["context_builder.agent"]);
+            }
+            if (vals["context_builder.model"] !== undefined) {
+              setBuilderModel(vals["context_builder.model"]);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load context builder settings from daemon:", err);
+      }
+    };
+
+    fetchDaemonSettings();
+  }, [isConnected]);
+
   // Listen to file clicks in tree explorer to add to selection
   useEffect(() => {
     const handleFileClicked = async (e: Event) => {
@@ -472,7 +520,11 @@ export default function ContextBuilderPanel({ isConnected }: { isConnected: bool
                   <select
                     className="select input-small"
                     value={tokenBudget}
-                    onChange={e => setTokenBudget(Number(e.target.value))}
+                    onChange={e => {
+                      const val = Number(e.target.value);
+                      setTokenBudget(val);
+                      updateDaemonSetting("context_builder.token_budget", val);
+                    }}
                   >
                     <option value={30000}>30k tokens</option>
                     <option value={60000}>60k tokens</option>
@@ -487,7 +539,11 @@ export default function ContextBuilderPanel({ isConnected }: { isConnected: bool
                   <select
                     className="select input-small"
                     value={enhancementMode}
-                    onChange={e => setEnhancementMode(e.target.value as any)}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setEnhancementMode(val as any);
+                      updateDaemonSetting("context_builder.enhancement_mode", val);
+                    }}
                   >
                     <option value="fullRewrite">Rewrite Prompt</option>
                     <option value="augment">Augment Content</option>
@@ -501,7 +557,11 @@ export default function ContextBuilderPanel({ isConnected }: { isConnected: bool
                     <input
                       type="checkbox"
                       checked={allowQuestions}
-                      onChange={e => setAllowQuestions(e.target.checked)}
+                      onChange={e => {
+                        const val = e.target.checked;
+                        setAllowQuestions(val);
+                        updateDaemonSetting("context_builder.allow_clarifying_questions", val);
+                      }}
                     />
                     <span className="toggle-slider"></span>
                   </label>
@@ -512,7 +572,15 @@ export default function ContextBuilderPanel({ isConnected }: { isConnected: bool
             <div className="grid grid-cols-2 gap-2 mt-1">
               <div className="flex flex-col gap-1">
                 <span className="text-xxs text-muted font-medium">DISCOVERY BACKEND</span>
-                <select className="select input-small" value={builderAgent} onChange={e => setBuilderAgent(e.target.value)}>
+                <select
+                  className="select input-small"
+                  value={builderAgent}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setBuilderAgent(val);
+                    updateDaemonSetting("context_builder.agent", val);
+                  }}
+                >
                   <option value="claudeCode">Claude Code CLI</option>
                   <option value="codexExec">Codex Exec</option>
                   <option value="openCode">Open Code</option>
@@ -520,7 +588,15 @@ export default function ContextBuilderPanel({ isConnected }: { isConnected: bool
               </div>
               <div className="flex flex-col gap-1">
                 <span className="text-xxs text-muted font-medium">MODEL GRADE</span>
-                <select className="select input-small" value={builderModel} onChange={e => setBuilderModel(e.target.value)}>
+                <select
+                  className="select input-small"
+                  value={builderModel}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setBuilderModel(val);
+                    updateDaemonSetting("context_builder.model", val);
+                  }}
+                >
                   <option value="oracle">Oracle (Reasoning)</option>
                   <option value="chat">Chat (Balanced)</option>
                   <option value="fast">Fast (Cheap)</option>
@@ -594,7 +670,11 @@ export default function ContextBuilderPanel({ isConnected }: { isConnected: bool
                 <input
                   type="checkbox"
                   checked={autoPlan}
-                  onChange={e => setAutoPlan(e.target.checked)}
+                  onChange={e => {
+                    const val = e.target.checked;
+                    setAutoPlan(val);
+                    updateDaemonSetting("context_builder.auto_generate_plan", val);
+                  }}
                 />
                 <span className="toggle-slider"></span>
               </label>
