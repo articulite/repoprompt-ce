@@ -710,6 +710,88 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--text-primary);
   border-top-left-radius: 2px;
 }
+.chat-bubble p.markdown-p {
+  margin: 0 0 8px 0;
+}
+.chat-bubble p.markdown-p:last-child {
+  margin-bottom: 0;
+}
+.chat-bubble ul.markdown-ul,
+.chat-bubble ol.markdown-ol {
+  margin: 0 0 8px 0;
+  padding-left: 20px;
+}
+.chat-bubble ul.markdown-ul:last-child,
+.chat-bubble ol.markdown-ol:last-child {
+  margin-bottom: 0;
+}
+.chat-bubble li.markdown-li {
+  margin-bottom: 4px;
+}
+.chat-bubble li.markdown-li:last-child {
+  margin-bottom: 0;
+}
+.chat-bubble h3.markdown-h1,
+.chat-bubble h3.markdown-h2,
+.chat-bubble h3.markdown-h3,
+.chat-bubble h4.markdown-h4,
+.chat-bubble h5.markdown-h5,
+.chat-bubble h6.markdown-h6 {
+  font-weight: 600;
+  margin: 12px 0 6px 0;
+  color: var(--text-primary);
+}
+.chat-bubble h3.markdown-h1:first-child,
+.chat-bubble h3.markdown-h2:first-child,
+.chat-bubble h3.markdown-h3:first-child,
+.chat-bubble h4.markdown-h4:first-child,
+.chat-bubble h5.markdown-h5:first-child,
+.chat-bubble h6.markdown-h6:first-child {
+  margin-top: 0;
+}
+.chat-bubble h3.markdown-h1:last-child,
+.chat-bubble h3.markdown-h2:last-child,
+.chat-bubble h3.markdown-h3:last-child,
+.chat-bubble h4.markdown-h4:last-child,
+.chat-bubble h5.markdown-h5:last-child,
+.chat-bubble h6.markdown-h6:last-child {
+  margin-bottom: 0;
+}
+.markdown-spacer {
+  height: 8px;
+}
+.mention-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 1.5px 6px;
+  margin: 0 2px;
+  vertical-align: middle;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  text-decoration: none;
+}
+.user-mention {
+  background-color: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+.user-mention:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+.assistant-mention {
+  background-color: var(--accent-light);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  color: var(--accent-color);
+}
+.assistant-mention:hover {
+  background-color: var(--border-color);
+  border-color: var(--accent-color);
+}
 .loading-bubble {
   display: flex;
   align-items: center;

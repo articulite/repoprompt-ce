@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
   Send, User, Brain, AlertCircle, Coins, Loader2,
-  ChevronDown, ChevronRight, Copy, Check, BookOpen, X
+  ChevronDown, ChevronRight, Copy, Check, BookOpen, X,
+  FileText
 } from "lucide-react";
 import { mcpClient } from "../mcpClient";
 import { safeParseJSON } from "../utils";
@@ -50,6 +51,121 @@ function parseMarkdown(text: string): ContentSegment[] {
   }
 
   return segments;
+}
+
+function parseInlineContent(text: string, isUserMessage: boolean = false): React.ReactNode[] {
+  const regex = /(`[^`\n]+`|\*\*[^*]+\*\*|@[a-zA-Z0-9_\-\.\/]+)/g;
+  const parts = text.split(regex);
+  return parts.map((part, idx) => {
+    if (part.startsWith("`") && part.endsWith("`")) {
+      return <code key={idx} className="inline-code">{part.slice(1, -1)}</code>;
+    }
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={idx}>{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith("@")) {
+      const fileName = part.slice(1);
+      return (
+        <span
+          key={idx}
+          className={`mention-pill ${isUserMessage ? "user-mention" : "assistant-mention"}`}
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent("fileClickedInExplorer", { detail: { name: fileName } }));
+          }}
+          title={`Click to target ${fileName}`}
+        >
+          <FileText size={12} style={{ flexShrink: 0 }} />
+          {part}
+        </span>
+      );
+    }
+    return part;
+  });
+}
+
+function parseBlocks(text: string, isUserMessage: boolean = false): React.ReactNode[] {
+  const rawLines = text.split("\n");
+  const blocks: React.ReactNode[] = [];
+
+  let currentList: { type: "ul" | "ol"; items: string[] } | null = null;
+
+  const flushList = (keyPrefix: string | number) => {
+    if (currentList) {
+      const ListTag = currentList.type;
+      const listClass = currentList.type === "ul" ? "markdown-ul" : "markdown-ol";
+      blocks.push(
+        <ListTag key={`list-${keyPrefix}`} className={listClass}>
+          {currentList.items.map((item, idx) => (
+            <li key={idx} className="markdown-li">
+              {parseInlineContent(item, isUserMessage)}
+            </li>
+          ))}
+        </ListTag>
+      );
+      currentList = null;
+    }
+  };
+
+  rawLines.forEach((line, index) => {
+    const trimmed = line.trim();
+
+    // Check if it is a header
+    const headerMatch = line.match(/^(#{1,6})\s+(.*)$/);
+    if (headerMatch) {
+      flushList(index);
+      const level = headerMatch[1].length;
+      const content = headerMatch[2];
+      const HeaderTag = `h${Math.min(6, level + 2)}` as any;
+      blocks.push(
+        <HeaderTag key={index} className={`markdown-h${level}`}>
+          {parseInlineContent(content, isUserMessage)}
+        </HeaderTag>
+      );
+      return;
+    }
+
+    // Check if it is an unordered list item (starts with -, *, +)
+    const ulMatch = line.match(/^(\s*)[-*+]\s+(.*)$/);
+    if (ulMatch) {
+      const content = ulMatch[2];
+      if (currentList && currentList.type === "ul") {
+        currentList.items.push(content);
+      } else {
+        flushList(index);
+        currentList = { type: "ul", items: [content] };
+      }
+      return;
+    }
+
+    // Check if it is an ordered list item (starts with 1., 2., etc.)
+    const olMatch = line.match(/^(\s*)\d+\.\s+(.*)$/);
+    if (olMatch) {
+      const content = olMatch[2];
+      if (currentList && currentList.type === "ol") {
+        currentList.items.push(content);
+      } else {
+        flushList(index);
+        currentList = { type: "ol", items: [content] };
+      }
+      return;
+    }
+
+    // Regular line
+    if (trimmed === "") {
+      flushList(index);
+      blocks.push(<div key={index} className="markdown-spacer" />);
+    } else {
+      flushList(index);
+      blocks.push(
+        <p key={index} className="markdown-p">
+          {parseInlineContent(line, isUserMessage)}
+        </p>
+      );
+    }
+  });
+
+  flushList("final");
+  return blocks;
 }
 
 // Foldable Code Block component
@@ -351,7 +467,7 @@ export default function ChatPanel({ isConnected }: ChatPanelProps) {
     }, 10);
   };
 
-  const renderMessageContent = (text: string) => {
+  const renderMessageContent = (text: string, isUser: boolean) => {
     const segments = parseMarkdown(text);
     return segments.map((seg, index) => {
       if (seg.type === "code") {
@@ -364,16 +480,11 @@ export default function ChatPanel({ isConnected }: ChatPanelProps) {
         );
       }
 
-      const inlineParsed = seg.content.split(/(`[^`\n]+`|\*\*[^*]+\*\*)/g).map((part, pIdx) => {
-        if (part.startsWith("`") && part.endsWith("`")) {
-          return <code key={pIdx} className="inline-code">{part.slice(1, -1)}</code>;
-        }
-        if (part.startsWith("**") && part.endsWith("**")) {
-          return <strong key={pIdx}>{part.slice(2, -2)}</strong>;
-        }
-        return part;
-      });
-      return <span key={index} className="msg-text-segment">{inlineParsed}</span>;
+      return (
+        <div key={index} className="msg-text-segment">
+          {parseBlocks(seg.content, isUser)}
+        </div>
+      );
     });
   };
 
@@ -388,7 +499,7 @@ export default function ChatPanel({ isConnected }: ChatPanelProps) {
               {msg.role === "user" ? <User size={14} /> : <Brain size={14} />}
             </div>
             <div className="chat-bubble">
-              <div className="bubble-text">{renderMessageContent(msg.text)}</div>
+              <div className="bubble-text">{renderMessageContent(msg.text, msg.role === "user")}</div>
             </div>
           </div>
         ))}
