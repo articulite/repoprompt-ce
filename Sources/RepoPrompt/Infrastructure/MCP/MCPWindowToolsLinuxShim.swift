@@ -517,7 +517,7 @@
                 resolveCopyPreset: { _ in nil as CopyPreset? },
                 buildTabWorkspaceContext: { _, _, _, _, _ in
                     let roots = await window.promptManager.workspaceFileContextStore.rootRefs(scope: .visibleWorkspace).map { "\($0.name) → \($0.fullPath)" }
-                    var gitBranch: String? = nil
+                    var gitBranch: String?
                     if let firstRoot = await window.promptManager.workspaceFileContextStore.rootRefs(scope: .visibleWorkspace).first {
                         let wslPath = PathTranslator.toWSLPath(firstRoot.fullPath)
                         let processConfig = CLIProcessConfiguration(
