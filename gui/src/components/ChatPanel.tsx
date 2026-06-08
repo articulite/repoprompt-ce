@@ -2,7 +2,9 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   Send, User, Brain, AlertCircle, Coins, Loader2,
   ChevronDown, ChevronRight, Copy, Check, BookOpen, X,
-  FileText
+  FileText, Laptop, Zap, Eye, RefreshCw, Search,
+  Lock, Info, Paperclip, MessageSquare, ArrowDown,
+  Cpu, Plus, Settings, GitBranch
 } from "lucide-react";
 import { mcpClient } from "../mcpClient";
 import { safeParseJSON } from "../utils";
@@ -15,6 +17,8 @@ interface Message {
 
 interface ChatPanelProps {
   isConnected: boolean;
+  messages: Message[];
+  onMessagesChange: (msgs: Message[]) => void;
 }
 
 interface ContentSegment {
@@ -230,15 +234,8 @@ const CHAT_TEMPLATES = [
   }
 ];
 
-export default function ChatPanel({ isConnected }: ChatPanelProps) {
+export default function ChatPanel({ isConnected, messages, onMessagesChange }: ChatPanelProps) {
   const [showTemplates, setShowTemplates] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-      text: "Hello! I am connected to the WSL Swift Daemon. How can I help you explore or modify your codebase today?",
-      timestamp: new Date(),
-    },
-  ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [selectedRole, setSelectedRole] = useState("pair");
@@ -253,7 +250,36 @@ export default function ChatPanel({ isConnected }: ChatPanelProps) {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
   const [cursorPos, setCursorPos] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Toolbar dropdown selections
+  const [selectedWorkflow, setSelectedWorkflow] = useState("Orchestrate");
+  const [selectedLocation, setSelectedLocation] = useState("Work locally");
+  const [selectedPermission, setSelectedPermission] = useState("Permissions - Default");
+
+  // Popover menus visibility
+  const [showWorkflowMenu, setShowWorkflowMenu] = useState(false);
+  const [showLocationMenu, setShowLocationMenu] = useState(false);
+  const [showModelMenu, setShowModelMenu] = useState(false);
+  const [showPermissionMenu, setShowPermissionMenu] = useState(false);
+
+  // Onboarding pagination states
+  const [currentWorkflowPage, setCurrentWorkflowPage] = useState(0);
+  const [activeTipIndex, setActiveTipIndex] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  useEffect(() => {
+    let timer: any;
+    if (loading) {
+      setElapsedSeconds(0);
+      timer = setInterval(() => {
+        setElapsedSeconds(prev => prev + 1);
+      }, 1000);
+    } else {
+      setElapsedSeconds(0);
+    }
+    return () => clearInterval(timer);
+  }, [loading]);
 
   useEffect(() => {
     if (isConnected) {
@@ -275,8 +301,8 @@ export default function ChatPanel({ isConnected }: ChatPanelProps) {
         const spacer = prev && !prev.endsWith(" ") ? " " : "";
         return prev + spacer + `@${fileName} `;
       });
-      if (inputRef.current) {
-        inputRef.current.focus();
+      if (textareaRef.current) {
+        textareaRef.current.focus();
       }
     };
 
@@ -291,8 +317,8 @@ export default function ChatPanel({ isConnected }: ChatPanelProps) {
       const text = customEvent.detail.text;
       if (text) {
         setInput(text);
-        if (inputRef.current) {
-          inputRef.current.focus();
+        if (textareaRef.current) {
+          textareaRef.current.focus();
         }
       }
     };
@@ -363,10 +389,9 @@ export default function ChatPanel({ isConnected }: ChatPanelProps) {
     setLoading(true);
     setShowSuggestions(false);
 
-    setMessages((prev) => [
-      ...prev,
-      { role: "user", text: userPrompt, timestamp: new Date() },
-    ]);
+    const userMsg = { role: "user" as const, text: userPrompt, timestamp: new Date() };
+    const updatedMessages = [...messages, userMsg];
+    onMessagesChange(updatedMessages);
 
     try {
       const res = await mcpClient.callTool("agent_run", {
@@ -397,9 +422,9 @@ export default function ChatPanel({ isConnected }: ChatPanelProps) {
           });
         }
 
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", text: assistantReply, timestamp: new Date() },
+        onMessagesChange([
+          ...updatedMessages,
+          { role: "assistant" as const, text: assistantReply, timestamp: new Date() },
         ]);
         // Refresh suggestions list in case files changed
         fetchFileSuggestions();
@@ -412,7 +437,7 @@ export default function ChatPanel({ isConnected }: ChatPanelProps) {
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setInput(val);
 
@@ -433,7 +458,7 @@ export default function ChatPanel({ isConnected }: ChatPanelProps) {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (showSuggestions) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -459,10 +484,10 @@ export default function ChatPanel({ isConnected }: ChatPanelProps) {
     setShowSuggestions(false);
 
     setTimeout(() => {
-      if (inputRef.current) {
-        inputRef.current.focus();
+      if (textareaRef.current) {
+        textareaRef.current.focus();
         const newPos = newTextBefore.length;
-        inputRef.current.setSelectionRange(newPos, newPos);
+        textareaRef.current.setSelectionRange(newPos, newPos);
       }
     }, 10);
   };
@@ -492,140 +517,455 @@ export default function ChatPanel({ isConnected }: ChatPanelProps) {
     <div className="chat-layout">
       <div className="chat-main-section">
         {/* Messages viewport */}
-        <div className="chat-messages">
-        {messages.map((msg, i) => (
-          <div key={i} className={`chat-bubble-container ${msg.role}`}>
-            <div className="avatar">
-              {msg.role === "user" ? <User size={14} /> : <Brain size={14} />}
-            </div>
-            <div className="chat-bubble">
-              <div className="bubble-text">{renderMessageContent(msg.text, msg.role === "user")}</div>
-            </div>
-          </div>
-        ))}
-        {loading && (
-          <div className="chat-bubble-container assistant">
-            <div className="avatar animate-pulse">
-              <Brain size={14} />
-            </div>
-            <div className="chat-bubble loading-bubble">
-              <Loader2 className="animate-spin" size={14} />
-              <span>Agent is thinking and executing tools...</span>
-            </div>
-          </div>
-        )}
-        {error && (
-          <div className="chat-error-banner animate-fade-in">
-            <AlertCircle size={16} />
-            <span>
-              {error.includes("Agent mode not supported on Linux") ? (
-                <span>
-                  <strong>Agent Mode is not supported natively on Linux/WSL.</strong>
-                  <br />
-                  On WSL/Linux, the RepoPrompt daemon operates in headless mode to serve repository tools to external agents.
-                  <br />
-                  To explore or modify your codebase, run your configured CLI agent (e.g. <code>opencode</code> or <code>claude</code>) in your WSL terminal. It will connect to this daemon automatically.
-                </span>
-              ) : (
-                error
-              )}
-            </span>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Input control strip */}
-      <div className="chat-input-bar glass">
-        <form onSubmit={handleSend} className="input-form">
-          <div className="input-row">
-            {/* Role/Model Selector */}
-            <div className="role-selector-container">
-              <select
-                className="select"
-                value={selectedRole}
-                onChange={(e) => setSelectedRole(e.target.value)}
-                disabled={loading || !isConnected}
-              >
-                {roles.map((r) => (
-                  <option key={r.label} value={r.label}>
-                    {r.label.toUpperCase()} ({r.name})
-                  </option>
-                ))}
-              </select>
+        {messages.length === 0 ? (
+          <div className="chat-onboarding-container">
+            <div className="onboarding-title-container animate-fade-in">
+              <MessageSquare size={40} className="onboarding-conversation-icon animate-pulse" />
+              <h1>What are we building?</h1>
             </div>
 
-            {/* Input Wrapper with suggestions overlay */}
-            <div className="input-field-wrapper">
-              <input
-                ref={inputRef}
-                type="text"
-                className="input"
-                placeholder={isConnected ? "Ask code questions or type @ to mention files..." : "Waiting for connection..."}
-                value={input}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                disabled={loading || !isConnected}
-              />
+            {/* Workflows Section */}
+            <div style={{ width: '100%' }}>
+              <div className="onboarding-workflows-header">
+                <h3>FEATURED WORKFLOWS</h3>
+                <div className="workflows-carousel-controls">
+                  <button className="btn-carousel-edit">Edit</button>
+                  <div className="carousel-dots">
+                    <button className={`carousel-dot ${currentWorkflowPage === 0 ? 'active' : ''}`} onClick={() => setCurrentWorkflowPage(0)}></button>
+                    <button className={`carousel-dot ${currentWorkflowPage === 1 ? 'active' : ''}`} onClick={() => setCurrentWorkflowPage(1)}></button>
+                  </div>
+                </div>
+              </div>
 
-              {showSuggestions && (
-                <div className="autocomplete-suggestions glass animate-fade-in">
-                  {suggestions.map((sug, sIdx) => (
-                    <div
-                      key={sug}
-                      className={`suggestion-item ${sIdx === activeSuggestionIndex ? 'active' : ''}`}
-                      onClick={() => selectSuggestion(sug)}
-                    >
-                      {sug}
+              {currentWorkflowPage === 0 ? (
+                <div className="workflows-grid animate-fade-in">
+                  <div className="workflow-card-item" onClick={() => { setSelectedWorkflow("Orchestrate"); if (textareaRef.current) textareaRef.current.focus(); }}>
+                    <div className="workflow-card-title-row">
+                      <Cpu size={16} className="text-emerald-500" />
+                      <span>Orchestrate</span>
                     </div>
-                  ))}
+                    <div className="workflow-card-desc">
+                      Breaks a complex request into smaller tasks, sends agents to do the work, and checks each result.
+                    </div>
+                  </div>
+                  <div className="workflow-card-item" onClick={() => { setSelectedWorkflow("Deep Plan"); if (textareaRef.current) textareaRef.current.focus(); }}>
+                    <div className="workflow-card-title-row">
+                      <FileText size={16} className="text-blue-500" />
+                      <span>Deep Plan</span>
+                    </div>
+                    <div className="workflow-card-desc">
+                      Researches the code, asks how hands-on you want to be, and writes a clear implementation plan.
+                    </div>
+                  </div>
+                  <div className="workflow-card-item" onClick={() => { setSelectedWorkflow("Optimize"); if (textareaRef.current) textareaRef.current.focus(); }}>
+                    <div className="workflow-card-title-row">
+                      <Zap size={16} className="text-red-500" />
+                      <span>Optimize</span>
+                    </div>
+                    <div className="workflow-card-desc">
+                      Finds what to measure, adds metrics, tries improvements, and uses evidence to keep iterating.
+                    </div>
+                  </div>
+                  <div className="workflow-card-item" onClick={() => { setSelectedWorkflow("Review"); if (textareaRef.current) textareaRef.current.focus(); }}>
+                    <div className="workflow-card-title-row">
+                      <Eye size={16} className="text-purple-500" />
+                      <span>Review</span>
+                    </div>
+                    <div className="workflow-card-desc">
+                      Deeply reviews the code for subtle bugs, regressions, risks, and missed edge cases.
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="workflows-grid animate-fade-in">
+                  <div className="workflow-card-item" onClick={() => { setSelectedWorkflow("Refactor"); if (textareaRef.current) textareaRef.current.focus(); }}>
+                    <div className="workflow-card-title-row">
+                      <RefreshCw size={16} className="text-orange-500" />
+                      <span>Refactor</span>
+                    </div>
+                    <div className="workflow-card-desc">
+                      Cleans up code structure while keeping behavior the same.
+                    </div>
+                  </div>
+                  <div className="workflow-card-item" onClick={() => { setSelectedWorkflow("Investigate"); if (textareaRef.current) textareaRef.current.focus(); }}>
+                    <div className="workflow-card-title-row">
+                      <Search size={16} className="text-teal-500" />
+                      <span>Investigate</span>
+                    </div>
+                    <div className="workflow-card-desc">
+                      Digs into bugs, crashes, security concerns, or research questions and reports the evidence.
+                    </div>
+                  </div>
+                  <div className="workflow-card-item" onClick={() => { setInput("Export active session history to markdown"); if (textareaRef.current) textareaRef.current.focus(); }}>
+                    <div className="workflow-card-title-row">
+                      <BookOpen size={16} className="text-zinc-400" />
+                      <span>ChatGPT Export</span>
+                    </div>
+                    <div className="workflow-card-desc">
+                      Exports active chat history formatted as clean markdown for direct ChatGPT or Claude imports.
+                    </div>
+                  </div>
+                  <div className="workflow-card-item" style={{ opacity: 0.5, cursor: 'default' }}>
+                    <div className="workflow-card-title-row">
+                      <Plus size={16} className="text-zinc-500" />
+                      <span>More coming soon</span>
+                    </div>
+                    <div className="workflow-card-desc">
+                      Custom workflows can be configured in configuration settings.
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Send button */}
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={loading || !isConnected || !input.trim()}
-            >
-              <Send size={16} />
-            </button>
-          </div>
-        </form>
+            {/* Tips Section */}
+            <div className="onboarding-tips-container">
+              <div className="tips-header-row">
+                <span>TIPS & TRICKS</span>
+                <div className="carousel-dots">
+                  {[0, 1, 2].map(idx => (
+                    <button key={idx} className={`carousel-dot ${activeTipIndex === idx ? 'active' : ''}`} onClick={() => setActiveTipIndex(idx)}></button>
+                  ))}
+                </div>
+              </div>
 
-        {/* Token Metadata summary */}
-        <div className="chat-token-footer">
-          <div className="token-item">
-            <Coins size={12} />
-            <span>Session Cost Estimate:</span>
-            <strong>${tokenCost.cost}</strong>
+              {activeTipIndex === 0 && (
+                <div className="tips-card-item animate-fade-in">
+                  <Info size={16} className="text-orange-500 animate-pulse" style={{ flexShrink: 0 }} />
+                  <div className="tips-card-content">
+                    <span className="tips-card-title">File Mentions</span>
+                    <span className="tips-card-desc">Use <code>@filename</code> to mention specific files and compile precise context maps.</span>
+                  </div>
+                </div>
+              )}
+              {activeTipIndex === 1 && (
+                <div className="tips-card-item animate-fade-in">
+                  <Info size={16} className="text-orange-500 animate-pulse" style={{ flexShrink: 0 }} />
+                  <div className="tips-card-content">
+                    <span className="tips-card-title">Workflow Planning</span>
+                    <span className="tips-card-desc">Select the <code>Deep Plan</code> workflow to review architecture design before making any codebase modifications.</span>
+                  </div>
+                </div>
+              )}
+              {activeTipIndex === 2 && (
+                <div className="tips-card-item animate-fade-in">
+                  <Info size={16} className="text-orange-500 animate-pulse" style={{ flexShrink: 0 }} />
+                  <div className="tips-card-content">
+                    <span className="tips-card-title">Direct Models Switching</span>
+                    <span className="tips-card-desc">Use the Models dropdown in the bottom bar to switch LLM providers dynamically.</span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-          <div className="divider-vertical"></div>
-          <div className="token-item">
-            <span>Input Tokens:</span>
-            <strong>{tokenCost.inputTokens}</strong>
+        ) : (
+          <div className="chat-messages">
+            {messages.map((msg, i) => (
+              <div key={i} className={`chat-bubble-container ${msg.role}`}>
+                <div className="avatar">
+                  {msg.role === "user" ? <User size={14} /> : <Brain size={14} />}
+                </div>
+                <div className="chat-bubble">
+                  {msg.role === "user" && <span className="bubble-user-badge">Pair Programmer</span>}
+                  <div className="bubble-text">{renderMessageContent(msg.text, msg.role === "user")}</div>
+                  <div className="bubble-meta-info">
+                    <span>{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    {msg.role === "user" && (
+                      <>
+                        <span className="text-[9px] px-1 py-0.5 rounded bg-zinc-800 text-zinc-400 font-mono">Y</span>
+                        <button className="btn-bubble-copy" title="Copy prompt text" onClick={() => navigator.clipboard.writeText(msg.text)}>
+                          <Copy size={11} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {loading && (
+              <div className="chat-bubble-container assistant animate-fade-in">
+                <div className="avatar animate-pulse">
+                  <Brain size={14} />
+                </div>
+                <div className="chat-bubble loading-bubble" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Loader2 className="animate-spin" size={14} />
+                    <span>Agent is thinking and executing tools...</span>
+                  </div>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Preparing... {elapsedSeconds}s</span>
+                </div>
+              </div>
+            )}
+            {error && (
+              <div className="chat-error-banner animate-fade-in">
+                <AlertCircle size={16} />
+                <span>{error}</span>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
           </div>
-          <div className="divider-vertical"></div>
-          <div className="token-item">
-            <span>Output Tokens:</span>
-            <strong>{tokenCost.outputTokens}</strong>
+        )}
+
+      {/* New Premium Input Box Card */}
+      <div className="chat-input-premium-card">
+        {/* Top Toolbar */}
+        <div className="chat-input-toolbar-top">
+          <div className="input-toolbar-selectors">
+            {/* Workflow Selector Button */}
+            <div style={{ position: 'relative' }}>
+              <button type="button" className="btn-toolbar-dropdown" onClick={() => { setShowWorkflowMenu(!showWorkflowMenu); setShowLocationMenu(false); }}>
+                <Cpu size={12} />
+                <span>Workflow: {selectedWorkflow}</span>
+                <ChevronDown size={10} />
+              </button>
+
+              {showWorkflowMenu && (
+                <div className="popover-menu-custom workflow-menu animate-fade-in">
+                  <div className="popover-menu-header">BUILT-IN</div>
+                  {[
+                    { name: "Orchestrate", desc: "Breaks request into tasks, deploys agents, and checks result.", icon: Cpu, color: "text-emerald-500" },
+                    { name: "Deep Plan", desc: "Researches code, asks preference, writes plans.", icon: FileText, color: "text-blue-500" },
+                    { name: "Optimize", desc: "Finds metrics, tries improvements, keeps iterating.", icon: Zap, color: "text-red-500" },
+                    { name: "Review", desc: "Deeply reviews code for bugs, regressions, risks.", icon: Eye, color: "text-purple-500" },
+                    { name: "Refactor", desc: "Cleans up structure keeping behavior same.", icon: RefreshCw, color: "text-orange-500" },
+                    { name: "Investigate", desc: "Digs into crashes, bug evidence, reports findings.", icon: Search, color: "text-teal-500" }
+                  ].map(w => (
+                    <button
+                      key={w.name}
+                      type="button"
+                      className={`popover-menu-item ${selectedWorkflow === w.name ? 'active' : ''}`}
+                      onClick={() => { setSelectedWorkflow(w.name); setShowWorkflowMenu(false); }}
+                    >
+                      <w.icon size={13} className={w.color} style={{ marginTop: '2px' }} />
+                      <div className="popover-menu-item-content">
+                        <span className="popover-menu-item-title">{w.name}</span>
+                        <span className="popover-menu-item-desc">{w.desc}</span>
+                      </div>
+                    </button>
+                  ))}
+                  <div className="popover-menu-footer-row">
+                    <button type="button" className="btn-popover-footer-action">
+                      <Settings size={10} /> Configure...
+                    </button>
+                    <button type="button" className="btn-popover-footer-action">
+                      <RefreshCw size={10} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Execution Location Button */}
+            <div style={{ position: 'relative' }}>
+              <button type="button" className="btn-toolbar-dropdown" onClick={() => { setShowLocationMenu(!showLocationMenu); setShowWorkflowMenu(false); }}>
+                <Laptop size={12} />
+                <span>{selectedLocation}</span>
+                <ChevronDown size={10} />
+              </button>
+
+              {showLocationMenu && (
+                <div className="popover-menu-custom animate-fade-in">
+                  <div className="popover-menu-header">EXECUTION LOCATION</div>
+                  <button
+                    type="button"
+                    className={`popover-menu-item ${selectedLocation === 'Work locally' ? 'active' : ''}`}
+                    onClick={() => { setSelectedLocation("Work locally"); setShowLocationMenu(false); }}
+                  >
+                    <Laptop size={13} style={{ marginTop: '2px' }} />
+                    <div className="popover-menu-item-content">
+                      <span className="popover-menu-item-title">Work locally</span>
+                      <span className="popover-menu-item-desc">Run directly on your local system host</span>
+                    </div>
+                    {selectedLocation === 'Work locally' && <Check size={12} className="ml-auto" />}
+                  </button>
+                  <button
+                    type="button"
+                    className={`popover-menu-item ${selectedLocation === 'New worktree' ? 'active' : ''}`}
+                    onClick={() => { setSelectedLocation("New worktree"); setShowLocationMenu(false); }}
+                  >
+                    <GitBranch size={13} style={{ marginTop: '2px' }} />
+                    <div className="popover-menu-item-content">
+                      <span className="popover-menu-item-title">New worktree</span>
+                      <span className="popover-menu-item-desc">Create isolated sandbox branch</span>
+                    </div>
+                    {selectedLocation === 'New worktree' && <Check size={12} className="ml-auto" />}
+                  </button>
+                  <div style={{ borderTop: '1px solid var(--border-color)', margin: '4px 0' }} />
+                  <div className="popover-menu-header">EXISTING WORKTREES</div>
+                  <div className="popover-menu-info-box">
+                    Existing and new worktrees require a Git-backed primary workspace root.
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Context Badge */}
+            <span className="btn-toolbar-badge">
+              <FileText size={12} />
+              <span>0 files</span>
+            </span>
           </div>
-          {/* Spacer */}
-          <div style={{ flex: 1 }}></div>
-          {/* Toggle templates sidebar */}
-          <button
-            type="button"
-            className={`btn-templates-toggle ${showTemplates ? 'active' : ''}`}
-            onClick={() => setShowTemplates(!showTemplates)}
-            title="Preset Prompt Templates"
-          >
-            <BookOpen size={12} />
-            <span>Templates</span>
+
+          <button type="button" className="btn-scroll-bottom-arrow" onClick={scrollToBottom} title="Scroll to bottom">
+            <ArrowDown size={12} />
           </button>
         </div>
+
+        {/* Textarea Input area */}
+        <div className="textarea-input-wrapper">
+          <textarea
+            ref={textareaRef}
+            className="textarea-input-field"
+            placeholder={isConnected ? "Ask code questions or type @ to mention files..." : "Waiting for connection..."}
+            value={input}
+            onChange={handleInputChange}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey && !showSuggestions) {
+                e.preventDefault();
+                handleSend(e);
+              } else {
+                handleKeyDown(e);
+              }
+            }}
+            disabled={loading || !isConnected}
+            rows={2}
+          />
+
+          {showSuggestions && (
+            <div className="autocomplete-suggestions glass animate-fade-in" style={{ bottom: '100%', top: 'auto', marginBottom: '8px' }}>
+              {suggestions.map((sug, sIdx) => (
+                <div
+                  key={sug}
+                  className={`suggestion-item ${sIdx === activeSuggestionIndex ? 'active' : ''}`}
+                  onClick={() => selectSuggestion(sug)}
+                >
+                  {sug}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Bottom Actions Row */}
+          <div className="input-bottom-actions-row">
+            <div className="bottom-selectors-left">
+              {/* Model Picker */}
+              <div style={{ position: 'relative' }}>
+                <button type="button" className="btn-input-bottom-picker" onClick={() => { setShowModelMenu(!showModelMenu); setShowPermissionMenu(false); }}>
+                  <Brain size={12} />
+                  <span>Model: {roles.find(r => r.label === selectedRole)?.name || selectedRole.toUpperCase()}</span>
+                  <ChevronDown size={10} />
+                </button>
+                {showModelMenu && (
+                  <div className="popover-menu-custom animate-fade-in" style={{ width: '280px' }}>
+                    <div className="popover-menu-header">AVAILABLE AGENT MODELS</div>
+                    {roles.length === 0 ? (
+                      <div style={{ padding: '8px 12px', fontSize: '11px', color: 'var(--text-muted)' }}>Loading models...</div>
+                    ) : (
+                      roles.map(r => (
+                        <button
+                          key={r.label}
+                          type="button"
+                          className={`popover-menu-item ${selectedRole === r.label ? 'active' : ''}`}
+                          onClick={() => { setSelectedRole(r.label); setShowModelMenu(false); }}
+                        >
+                          <Brain size={13} style={{ marginTop: '2px' }} />
+                          <div className="popover-menu-item-content">
+                            <span className="popover-menu-item-title">{r.label.toUpperCase()}</span>
+                            <span className="popover-menu-item-desc">{r.name}</span>
+                          </div>
+                          {selectedRole === r.label && <Check size={12} className="ml-auto" />}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Permissions Selector */}
+              <div style={{ position: 'relative' }}>
+                <button type="button" className="btn-input-bottom-picker" onClick={() => { setShowPermissionMenu(!showPermissionMenu); setShowModelMenu(false); }}>
+                  <Lock size={12} />
+                  <span>{selectedPermission}</span>
+                  <ChevronDown size={10} />
+                </button>
+                {showPermissionMenu && (
+                  <div className="popover-menu-custom animate-fade-in">
+                    <div className="popover-menu-header">SECURITY PERMISSIONS</div>
+                    {[
+                      { name: "Permissions - Default", desc: "Require confirmation for destructive tools" },
+                      { name: "Permissions - Full Write", desc: "Auto-approve all read and write tools" },
+                      { name: "Permissions - Read Only", desc: "Deny all mutating write and run commands" }
+                    ].map(p => (
+                      <button
+                        key={p.name}
+                        type="button"
+                        className={`popover-menu-item ${selectedPermission === p.name ? 'active' : ''}`}
+                        onClick={() => { setSelectedPermission(p.name); setShowPermissionMenu(false); }}
+                      >
+                        <Lock size={13} style={{ marginTop: '2px' }} />
+                        <div className="popover-menu-item-content">
+                          <span className="popover-menu-item-title">{p.name}</span>
+                          <span className="popover-menu-item-desc">{p.desc}</span>
+                        </div>
+                        {selectedPermission === p.name && <Check size={12} className="ml-auto" />}
+                      </button>
+                    ))}
+                    <div style={{ borderTop: '1px solid var(--border-color)', margin: '4px 0' }} />
+                    <div className="popover-menu-info-box">
+                      Configure tool execution safety gates and auto-approval policies in settings.
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="bottom-actions-right">
+              <button type="button" className="btn-input-attachment" title="Attach file or image">
+                <Paperclip size={14} />
+              </button>
+              <button
+                type="button"
+                className="btn-send-premium"
+                onClick={(e) => handleSend(e)}
+                disabled={loading || !isConnected || !input.trim()}
+                title="Send Message"
+              >
+                <Send size={14} />
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
+
+      {/* Token Metadata summary */}
+      <div className="chat-token-footer" style={{ margin: '0 24px 16px 24px' }}>
+        <div className="token-item">
+          <Coins size={12} />
+          <span>Session Cost Estimate:</span>
+          <strong>${tokenCost.cost}</strong>
+        </div>
+        <div className="divider-vertical"></div>
+        <div className="token-item">
+          <span>Input Tokens:</span>
+          <strong>{tokenCost.inputTokens}</strong>
+        </div>
+        <div className="divider-vertical"></div>
+        <div className="token-item">
+          <span>Output Tokens:</span>
+          <strong>{tokenCost.outputTokens}</strong>
+        </div>
+        <div style={{ flex: 1 }}></div>
+        <button
+          type="button"
+          className={`btn-templates-toggle ${showTemplates ? 'active' : ''}`}
+          onClick={() => setShowTemplates(!showTemplates)}
+          title="Preset Prompt Templates"
+        >
+          <BookOpen size={12} />
+          <span>Templates</span>
+        </button>
       </div>
+    </div>
 
       {/* Templates Sidebar */}
       {showTemplates && (
@@ -644,8 +984,8 @@ export default function ChatPanel({ isConnected }: ChatPanelProps) {
                 onClick={() => {
                   setInput(tmpl.content);
                   setShowTemplates(false);
-                  if (inputRef.current) {
-                    inputRef.current.focus();
+                  if (textareaRef.current) {
+                    textareaRef.current.focus();
                   }
                 }}
               >

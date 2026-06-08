@@ -231,6 +231,9 @@ extension MCPServerViewModel {
         // Build copy preset context DTO (shows active vs effective if overridden)
         let copyPresetContextDTO = buildCopyPresetContextDTO(active: activePreset, effective: effectivePreset)
 
+        let gitBranch = promptVM.gitViewModel.currentBranch
+        let roots = promptVM.workspaceFileContextStore.rootRefs(scope: .visibleWorkspace).map { "\($0.name) → \($0.fullPath)" }
+
         return ToolResultDTOs.PromptContextDTO(
             prompt: prompt,
             selection: selectionDTO,
@@ -242,7 +245,9 @@ extension MCPServerViewModel {
             tokenStatsNote: tokenStatsNote,
             copyPreset: copyPresetContextDTO,
             copyPresets: nil,
-            worktreeScope: worktreeScope
+            worktreeScope: worktreeScope,
+            gitBranch: gitBranch,
+            roots: roots
         )
     }
 

@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from "react";
 import {
-  FolderTree, MessageSquare, Terminal, Settings, Cpu,
-  ChevronDown, Plus, RefreshCw, LogOut, GitBranch,
-  HardDrive, Folder, FolderOpen, File, FileText, FileCode,
-  ChevronRight
+  Settings, ChevronDown, Plus, LogOut, GitBranch,
+  HardDrive, Folder, Search, Edit3, Clock
 } from "lucide-react";
 import { mcpClient } from "../mcpClient";
 import { safeParseJSON } from "../utils";
@@ -12,14 +10,12 @@ import ContextBuilderPanel from "./ContextBuilderPanel";
 import AgentModePanel from "./AgentModePanel";
 import SettingsPanel from "./SettingsPanel";
 
-interface TreeNode {
+interface ChatSession {
   id: string;
-  name: string;
-  depth: number;
-  isFolder: boolean;
-  rawLine: string;
-  isSelected?: boolean;
-  hasCodeMap?: boolean;
+  title: string;
+  timestamp: string;
+  status?: string;
+  messages: any[];
 }
 
 interface MainShellProps {
@@ -30,15 +26,22 @@ interface MainShellProps {
 
 export default function MainShell({ workspaceName, onExitWorkspace, isConnected }: MainShellProps) {
   const [activeTab, setActiveTab] = useState<"chat" | "agent" | "context" | "settings">("chat");
-  const [fileTree, setFileTree] = useState<string>("Loading workspace directory...");
-  const [treeMode, setTreeMode] = useState<"auto" | "full" | "folders">("auto");
-  const [loadingTree, setLoadingTree] = useState(false);
+  const [sessions, setSessions] = useState<ChatSession[]>([
+    {
+      id: "session-1",
+      title: "New Session",
+      timestamp: "Today",
+      messages: []
+    }
+  ]);
+  const [activeSessionId, setActiveSessionId] = useState<string>("session-1");
+  const [sessionSearchQuery, setSessionSearchQuery] = useState("");
+  const [settingsSection, setSettingsSection] = useState<string>("agent_mode");
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [showWSMenu, setShowWSMenu] = useState(false);
   const [gitBranch, setGitBranch] = useState<string>("main");
   const [showAddFolder, setShowAddFolder] = useState(false);
   const [newFolderPath, setNewFolderPath] = useState("");
-  const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
   const [roots, setRoots] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,51 +62,49 @@ export default function MainShell({ workspaceName, onExitWorkspace, isConnected 
   }, []);
 
   const loadWorkspaceContext = async () => {
-    setLoadingTree(true);
     try {
-      // Fetch file tree
-      const treeRes = await mcpClient.callTool("get_file_tree", {
-        type: "files",
-        mode: treeMode
-      });
-      if (treeRes && !treeRes.isError && treeRes.content && treeRes.content[0]?.text) {
-        const text = treeRes.content[0].text;
-        const parsed = safeParseJSON(text);
-        if (parsed && parsed.tree) {
-          setFileTree(parsed.tree);
-        } else {
-          setFileTree(text);
-        }
-      } else {
-        setFileTree("Failed to fetch directory tree.");
-      }
-
       // Fetch active workspace context (roots, git branch etc.)
       const contextRes = await mcpClient.callTool("workspace_context", {});
       if (contextRes && !contextRes.isError && contextRes.content && contextRes.content[0]?.text) {
-        // Try parsing context details
         const text = contextRes.content[0].text;
-        // Search for branch or path details
-        const branchMatch = text.match(/branch:\s*([^\s\n]+)/i) || text.match(/on branch\s*([^\s\n]+)/i);
-        if (branchMatch) {
-          setGitBranch(branchMatch[1]);
+
+        // Try parsing as JSON first since raw JSON might be requested/returned
+        let parsed: any = null;
+        try {
+          parsed = JSON.parse(text);
+        } catch (e) {
+          // not JSON
         }
 
-        // Extract loaded roots
-        const rootsList: string[] = [];
-        const lines = text.split("\n");
-        lines.forEach(line => {
-          if (line.includes("→")) {
-            rootsList.push(line.trim());
+        if (parsed) {
+          if (parsed.git_branch) {
+            setGitBranch(parsed.git_branch);
+          } else if (parsed.gitBranch) {
+            setGitBranch(parsed.gitBranch);
           }
-        });
-        setRoots(rootsList);
+          if (Array.isArray(parsed.roots)) {
+            setRoots(parsed.roots);
+          }
+        } else {
+          // Try parsing context details
+          const branchMatch = text.match(/branch:\s*([^\s\n]+)/i) || text.match(/on branch\s*([^\s\n]+)/i);
+          if (branchMatch) {
+            setGitBranch(branchMatch[1]);
+          }
+
+          // Extract loaded roots
+          const rootsList: string[] = [];
+          const lines = text.split("\n");
+          lines.forEach(line => {
+            if (line.includes("→")) {
+              rootsList.push(line.trim());
+            }
+          });
+          setRoots(rootsList);
+        }
       }
     } catch (err) {
       console.error("Failed to load workspace context", err);
-      setFileTree("Error connecting to workspace files.");
-    } finally {
-      setLoadingTree(false);
     }
   };
 
@@ -135,7 +136,6 @@ export default function MainShell({ workspaceName, onExitWorkspace, isConnected 
 
   const handleSwitchWorkspace = async (wsId: string, _wsName: string) => {
     setShowWSMenu(false);
-    setLoadingTree(true);
     try {
       const res = await mcpClient.callTool("manage_workspaces", {
         action: "switch",
@@ -173,106 +173,180 @@ export default function MainShell({ workspaceName, onExitWorkspace, isConnected 
     }
   };
 
+  const handleNewSession = () => {
+    const newId = `session-${Date.now()}`;
+    const newSess: ChatSession = {
+      id: newId,
+      title: "New Session",
+      timestamp: "Today",
+      messages: []
+    };
+    setSessions(prev => [newSess, ...prev]);
+    setActiveSessionId(newId);
+    setActiveTab("chat");
+  };
+
+  const handleSelectSession = (id: string) => {
+    setActiveSessionId(id);
+    setActiveTab("chat");
+  };
+
+  const handleSettingsClick = (section: string) => {
+    setSettingsSection(section);
+    setActiveTab("settings");
+  };
+
+  const handleMessagesChange = (newMsgs: any[]) => {
+    setSessions(prev => prev.map(s => {
+      if (s.id === activeSessionId) {
+        let title = s.title;
+        if (s.title === "New Session" && newMsgs.length > 0) {
+          const firstUserMsg = newMsgs.find(m => m.role === "user");
+          if (firstUserMsg) {
+            title = firstUserMsg.text.slice(0, 30) + (firstUserMsg.text.length > 30 ? "..." : "");
+          }
+        }
+        return { ...s, title, messages: newMsgs };
+      }
+      return s;
+    }));
+  };
+
+  const filteredSessions = sessions.filter(sess =>
+    sess.title.toLowerCase().includes(sessionSearchQuery.toLowerCase())
+  );
+
+  const sessionsByGroup: Record<string, ChatSession[]> = {};
+  filteredSessions.forEach(sess => {
+    const group = sess.timestamp;
+    if (!sessionsByGroup[group]) {
+      sessionsByGroup[group] = [];
+    }
+    sessionsByGroup[group].push(sess);
+  });
+
   return (
     <div className="app-container animate-fade-in">
       {/* Sidebar navigation */}
-      <aside className="sidebar glass">
-        {/* Workspace Dropdown Header */}
-        <div className="sidebar-header">
-          <div className="workspace-selector" onClick={() => setShowWSMenu(!showWSMenu)}>
-            <div className="workspace-info">
-              <span className="ws-label">ACTIVE WORKSPACE</span>
-              <span className="ws-name">{workspaceName}</span>
-            </div>
-            <ChevronDown size={16} className={`transition-transform ${showWSMenu ? 'rotate-180' : ''}`} />
+      <aside className="sidebar glass" style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '12px' }}>
+        {/* Top search & compose bar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+          <div style={{ position: 'relative', flex: 1 }}>
+            <Search size={14} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <input
+              type="text"
+              placeholder="Search"
+              className="input input-small"
+              style={{ paddingLeft: '28px', width: '100%', borderRadius: '6px' }}
+              value={sessionSearchQuery}
+              onChange={(e) => setSessionSearchQuery(e.target.value)}
+            />
           </div>
+          <button className="btn-compose" title="New Session" onClick={handleNewSession}>
+            <Edit3 size={14} />
+          </button>
+        </div>
 
-          {showWSMenu && (
-            <div className="workspace-dropdown glass animate-fade-in">
-              <div className="dropdown-title">Switch Workspace</div>
-              <div className="dropdown-list">
-                {workspaces.map((ws) => (
-                  <button
-                    key={ws.id}
-                    className={`dropdown-item ${ws.name === workspaceName ? 'active' : ''}`}
-                    onClick={() => handleSwitchWorkspace(ws.id, ws.name)}
+        {/* Sessions list */}
+        <div className="sessions-list-scroll">
+          {Object.keys(sessionsByGroup).length === 0 ? (
+            <div style={{ padding: '12px', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>
+              No sessions found
+            </div>
+          ) : (
+            Object.keys(sessionsByGroup).map(groupName => (
+              <div key={groupName} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <div className="session-group-header">{groupName}</div>
+                {sessionsByGroup[groupName].map(sess => (
+                  <div
+                    key={sess.id}
+                    className={`session-list-item ${activeSessionId === sess.id ? 'active' : ''}`}
+                    onClick={() => handleSelectSession(sess.id)}
                   >
-                    <span>{ws.name}</span>
-                  </button>
+                    {sess.status === "T2" ? (
+                      <span className="session-status-badge font-mono text-[9px] px-1 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">T2</span>
+                    ) : (
+                      activeSessionId === sess.id ? (
+                        <span className="session-status-icon"></span>
+                      ) : (
+                        <Clock size={12} className="text-muted" style={{ width: '12px', height: '12px' }} />
+                      )
+                    )}
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                      {sess.title}
+                    </span>
+                  </div>
                 ))}
               </div>
-              <div className="dropdown-divider"></div>
-              <button className="dropdown-item exit-btn" onClick={onExitWorkspace}>
-                <LogOut size={14} /> Exit Workspace
-              </button>
-            </div>
+            ))
           )}
         </div>
 
-        {/* Tab Selection */}
-        <nav className="sidebar-nav">
-          <button
-            className={`nav-tab ${activeTab === 'chat' ? 'active' : ''}`}
-            onClick={() => setActiveTab('chat')}
-          >
-            <MessageSquare size={16} /> Chat Workspace
-          </button>
-          <button
-            className={`nav-tab ${activeTab === 'context' ? 'active' : ''}`}
-            onClick={() => setActiveTab('context')}
-          >
-            <Cpu size={16} /> Context Builder
-          </button>
-          <button
-            className={`nav-tab ${activeTab === 'agent' ? 'active' : ''}`}
-            onClick={() => setActiveTab('agent')}
-          >
-            <Terminal size={16} /> Agent Execution
-          </button>
-          <button
-            className={`nav-tab ${activeTab === 'settings' ? 'active' : ''}`}
-            onClick={() => setActiveTab('settings')}
-          >
-            <Settings size={16} /> Configuration
-          </button>
-        </nav>
+        {/* Bottom Workspace Card */}
+        <div className="workspace-bottom-card">
+          <div className="workspace-bottom-label">WORKSPACE</div>
 
-        {/* File Explorer Section */}
-        <div className="explorer-section">
-          <div className="explorer-header">
-            <h3>
-              <FolderTree size={14} /> EXPLORER
-            </h3>
-            <div className="explorer-actions">
-              <button
-                className="btn-icon-small"
-                title="Add Folder to Workspace"
-                onClick={() => setShowAddFolder(!showAddFolder)}
-              >
-                <Plus size={14} />
-              </button>
-              <button
-                className="btn-icon-small"
-                title="Refresh File Tree"
-                onClick={loadWorkspaceContext}
-                disabled={loadingTree}
-              >
-                <RefreshCw size={14} className={loadingTree ? "animate-spin" : ""} />
-              </button>
-            </div>
+          <div className="workspace-selector-row">
+            <button className="workspace-dropdown-btn" onClick={() => setShowWSMenu(!showWSMenu)}>
+              <HardDrive size={13} className="text-muted" />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100px' }}>
+                {workspaceName}
+              </span>
+              <ChevronDown size={12} />
+            </button>
+            <button className="btn-exit-workspace" onClick={onExitWorkspace}>
+              <LogOut size={12} /> Exit
+            </button>
+
+            {showWSMenu && (
+              <div className="workspace-dropdown glass animate-fade-in" style={{ bottom: '100%', top: 'auto', marginBottom: '8px' }}>
+                <div className="dropdown-title">Switch Workspace</div>
+                <div className="dropdown-list">
+                  {workspaces.map((ws) => (
+                    <button
+                      key={ws.id}
+                      className={`dropdown-item ${ws.name === workspaceName ? 'active' : ''}`}
+                      onClick={() => handleSwitchWorkspace(ws.id, ws.name)}
+                    >
+                      <span>{ws.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="workspace-folders-list">
+            {roots.length === 0 ? (
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', padding: '2px 0' }}>No folders loaded</div>
+            ) : (
+              roots.map((root, index) => {
+                const parts = root.split(" → ");
+                const name = parts[1] || parts[0].split(/[/\\]/).pop() || parts[0];
+                return (
+                  <div key={index} className="workspace-folder-row" title={root}>
+                    <Folder size={12} className="text-muted" style={{ flexShrink: 0 }} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+                  </div>
+                );
+              })
+            )}
+            <button className="btn-add-folder-sidebar" onClick={() => setShowAddFolder(!showAddFolder)}>
+              <Plus size={12} /> Add Folder
+            </button>
           </div>
 
           {showAddFolder && (
-            <form onSubmit={handleAddFolder} className="add-folder-form animate-fade-in">
+            <form onSubmit={handleAddFolder} className="add-folder-form animate-fade-in" style={{ marginTop: '4px' }}>
               <input
                 type="text"
                 className="input input-small"
-                placeholder="Windows absolute path C:\..."
+                placeholder="C:\..."
                 value={newFolderPath}
                 onChange={(e) => setNewFolderPath(e.target.value)}
                 autoFocus
               />
-              <div className="form-actions">
+              <div className="form-actions" style={{ marginTop: '4px' }}>
                 <button type="submit" className="btn btn-primary btn-small">Add</button>
                 <button
                   type="button"
@@ -282,210 +356,20 @@ export default function MainShell({ workspaceName, onExitWorkspace, isConnected 
                   Cancel
                 </button>
               </div>
-              {error && <span className="error-text">{error}</span>}
+              {error && <span className="error-text" style={{ fontSize: '10px' }}>{error}</span>}
             </form>
           )}
 
-          {/* Tree Mode Selector */}
-          <div className="tree-modes">
-            <button
-              className={treeMode === 'auto' ? 'active' : ''}
-              onClick={() => { setTreeMode('auto'); setTimeout(loadWorkspaceContext, 50); }}
-            >
-              Auto
+          <div className="sidebar-bottom-actions-row">
+            <button className="btn-sidebar-footer-action" onClick={() => handleSettingsClick("agent_models")}>
+              Models
             </button>
-            <button
-              className={treeMode === 'full' ? 'active' : ''}
-              onClick={() => { setTreeMode('full'); setTimeout(loadWorkspaceContext, 50); }}
-            >
-              Full
+            <button className="btn-sidebar-footer-action" onClick={() => handleSettingsClick("agent_permissions")}>
+              Permissions
             </button>
-            <button
-              className={treeMode === 'folders' ? 'active' : ''}
-              onClick={() => { setTreeMode('folders'); setTimeout(loadWorkspaceContext, 50); }}
-            >
-              Folders
+            <button className="btn-sidebar-gear" onClick={() => handleSettingsClick("agent_mode")}>
+              <Settings size={14} />
             </button>
-          </div>
-
-          {/* File Tree Container */}
-          <div className="file-tree-container">
-            {loadingTree ? (
-              <div className="tree-loading">
-                <RefreshCw size={18} className="animate-spin text-muted" />
-                <span>Reading directory tree...</span>
-              </div>
-            ) : (() => {
-              // Parse the ASCII tree
-              const parseAsciiTree = (treeStr: string): TreeNode[] => {
-                if (!treeStr) return [];
-                const lines = treeStr.split("\n");
-                const nodes: TreeNode[] = [];
-
-                for (let i = 0; i < lines.length; i++) {
-                  const line = lines[i];
-                  if (!line.trim()) continue;
-
-                  const match = line.match(/^([│├└─┌\s]*)(.*)$/);
-                  if (!match) continue;
-
-                  const prefix = match[1];
-                  let name = match[2].trim();
-                  if (!name) continue;
-
-                  const depth = prefix ? Math.floor(prefix.length / 4) : 0;
-
-                  let isSelected = false;
-                  let hasCodeMap = false;
-                  if (name.endsWith(" *")) {
-                    name = name.slice(0, -2);
-                    isSelected = true;
-                  }
-                  if (name.endsWith(" +")) {
-                    name = name.slice(0, -2);
-                    hasCodeMap = true;
-                  }
-
-                  nodes.push({
-                    id: `${i}-${name}`,
-                    name,
-                    depth,
-                    isFolder: false,
-                    rawLine: line,
-                    isSelected,
-                    hasCodeMap
-                  });
-                }
-
-                for (let i = 0; i < nodes.length; i++) {
-                  const node = nodes[i];
-                  const nextNode = nodes[i + 1];
-                  node.isFolder = nextNode ? nextNode.depth > node.depth : false;
-                }
-
-                return nodes;
-              };
-
-              const getFileIcon = (name: string, isFolder: boolean, isOpen: boolean) => {
-                if (isFolder) {
-                  return isOpen ? (
-                    <FolderOpen size={13} className="folder-icon open" />
-                  ) : (
-                    <Folder size={13} className="folder-icon closed" />
-                  );
-                }
-
-                const ext = name.split(".").pop()?.toLowerCase();
-                switch (ext) {
-                  case "swift":
-                    return <FileCode size={13} className="file-icon swift" />;
-                  case "tsx":
-                  case "ts":
-                  case "jsx":
-                  case "js":
-                    return <FileCode size={13} className="file-icon js" />;
-                  case "css":
-                  case "html":
-                    return <FileCode size={13} className="file-icon html" />;
-                  case "json":
-                  case "yml":
-                  case "yaml":
-                  case "toml":
-                    return <FileText size={13} className="file-icon config" />;
-                  case "md":
-                  case "txt":
-                    return <FileText size={13} className="file-icon doc" />;
-                  default:
-                    return <File size={13} className="file-icon default" />;
-                }
-              };
-
-              const handleFolderToggle = (nodeId: string, e: React.MouseEvent) => {
-                e.stopPropagation();
-                setCollapsedNodes(prev => {
-                  const next = new Set(prev);
-                  if (next.has(nodeId)) {
-                    next.delete(nodeId);
-                  } else {
-                    next.add(nodeId);
-                  }
-                  return next;
-                });
-              };
-
-              const handleFileClick = (node: TreeNode) => {
-                navigator.clipboard.writeText(node.name);
-                // Dispatch a custom event to notify listeners (e.g. ChatPanel or AgentModePanel)
-                // that a file was clicked to allow autocomplete injection.
-                const event = new CustomEvent("fileClickedInExplorer", { detail: { name: node.name } });
-                window.dispatchEvent(event);
-              };
-
-              const allNodes = parseAsciiTree(fileTree);
-              const visibleNodes: TreeNode[] = [];
-              let currentCollapsedDepth = -1;
-
-              for (const node of allNodes) {
-                if (currentCollapsedDepth !== -1) {
-                  if (node.depth > currentCollapsedDepth) {
-                    continue;
-                  } else {
-                    currentCollapsedDepth = -1;
-                  }
-                }
-
-                visibleNodes.push(node);
-
-                if (node.isFolder && collapsedNodes.has(node.id)) {
-                  currentCollapsedDepth = node.depth;
-                }
-              }
-
-              if (visibleNodes.length === 0) {
-                return <div className="tree-empty">Workspace is empty.</div>;
-              }
-
-              return (
-                <div className="interactive-tree">
-                  {visibleNodes.map((node) => {
-                    const isCollapsed = collapsedNodes.has(node.id);
-                    const isOpen = node.isFolder && !isCollapsed;
-
-                    return (
-                      <div
-                        key={node.id}
-                        className={`tree-row ${node.isSelected ? 'selected' : ''}`}
-                        style={{ paddingLeft: `${node.depth * 10 + 4}px` }}
-                        onClick={() => node.isFolder ? null : handleFileClick(node)}
-                      >
-                        {node.isFolder ? (
-                          <button
-                            type="button"
-                            className="chevron-btn"
-                            onClick={(e) => handleFolderToggle(node.id, e)}
-                          >
-                            {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
-                          </button>
-                        ) : (
-                          <span className="chevron-placeholder" />
-                        )}
-
-                        <span className="node-icon" onClick={(e) => node.isFolder ? handleFolderToggle(node.id, e) : null}>
-                          {getFileIcon(node.name, node.isFolder, isOpen)}
-                        </span>
-
-                        <span className="node-name" onClick={(e) => node.isFolder ? handleFolderToggle(node.id, e) : null}>
-                          {node.name}
-                        </span>
-
-                        {node.isSelected && <span className="badge-selected">★</span>}
-                        {node.hasCodeMap && <span className="badge-codemap" title="Codemap indexed">CM</span>}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
           </div>
         </div>
       </aside>
@@ -511,7 +395,16 @@ export default function MainShell({ workspaceName, onExitWorkspace, isConnected 
         </header>
 
         <div className="tab-viewport">
-          {activeTab === 'chat' && <ChatPanel isConnected={isConnected} />}
+          {activeTab === 'chat' && (() => {
+            const activeSession = sessions.find(s => s.id === activeSessionId);
+            return (
+              <ChatPanel
+                isConnected={isConnected}
+                messages={activeSession ? activeSession.messages : []}
+                onMessagesChange={handleMessagesChange}
+              />
+            );
+          })()}
           {activeTab === 'context' && <ContextBuilderPanel isConnected={isConnected} />}
           {activeTab === 'agent' && <AgentModePanel isConnected={isConnected} />}
           {activeTab === 'settings' && (
@@ -519,6 +412,7 @@ export default function MainShell({ workspaceName, onExitWorkspace, isConnected 
               isConnected={isConnected}
               roots={roots}
               onRefreshRoots={loadWorkspaceContext}
+              initialSection={settingsSection}
             />
           )}
         </div>

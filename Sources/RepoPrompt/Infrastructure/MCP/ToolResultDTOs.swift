@@ -2196,6 +2196,8 @@ enum ToolResultDTOs {
         let copyPresets: [CopyPresetListItemDTO]?
         /// Active logical→effective worktree scope for filesystem-derived context.
         let worktreeScope: WorktreeScopeDTO?
+        let gitBranch: String?
+        let roots: [String]?
 
         init(
             prompt: String,
@@ -2208,7 +2210,9 @@ enum ToolResultDTOs {
             tokenStatsNote: String?,
             copyPreset: CopyPresetContextDTO?,
             copyPresets: [CopyPresetListItemDTO]?,
-            worktreeScope: WorktreeScopeDTO? = nil
+            worktreeScope: WorktreeScopeDTO? = nil,
+            gitBranch: String? = nil,
+            roots: [String]? = nil
         ) {
             self.prompt = prompt
             self.selection = selection
@@ -2221,6 +2225,8 @@ enum ToolResultDTOs {
             self.copyPreset = copyPreset
             self.copyPresets = copyPresets
             self.worktreeScope = worktreeScope
+            self.gitBranch = gitBranch
+            self.roots = roots
         }
 
         private enum CodingKeys: String, CodingKey {
@@ -2235,6 +2241,8 @@ enum ToolResultDTOs {
             case copyPreset = "copy_preset"
             case copyPresets = "copy_presets"
             case worktreeScope = "worktree_scope"
+            case gitBranch = "git_branch"
+            case roots
         }
     }
 }

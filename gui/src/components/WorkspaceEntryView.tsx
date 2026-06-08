@@ -65,11 +65,21 @@ export default function WorkspaceEntryView({ onWorkspaceSelected, isConnected }:
 
           // If autoRestore is enabled, check if daemon already has active workspace loaded
           const storedAuto = localStorage.getItem("autoRestoreWorkspaces") !== "false";
-          if (storedAuto) {
+          const hasExplicitExit = sessionStorage.getItem("explicitExit") === "true";
+          if (storedAuto && !hasExplicitExit) {
             const contextRes = await mcpClient.callTool("workspace_context", {});
             if (contextRes && !contextRes.isError && contextRes.content && contextRes.content[0]?.text) {
               const text = contextRes.content[0].text;
-              if (text.includes("Loaded roots:") && !text.includes("No workspace is currently loaded")) {
+
+              let hasRoots = false;
+              try {
+                const parsed = JSON.parse(text);
+                hasRoots = Array.isArray(parsed.roots) && parsed.roots.length > 0;
+              } catch (e) {
+                hasRoots = text.includes("Loaded roots:") && !text.includes("No workspace is currently loaded");
+              }
+
+              if (hasRoots) {
                 // Determine active workspace name
                 const activeWs = normalized.find(ws => ws.showingWindowIDs && ws.showingWindowIDs.length > 0)
                   || normalized[0];

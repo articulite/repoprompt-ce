@@ -142,7 +142,29 @@
                     }
                 },
                 requireTargetWindow: { window },
-                requireCurrentTabContext: { _ in throw MCPError.invalidParams("Tabs not supported on Linux") },
+                requireCurrentTabContext: { _ in
+                    let workspace = window.workspaceManager.activeWorkspace
+                    let tabID = workspace?.activeComposeTabID ?? workspace?.composeTabs.first?.id ?? UUID()
+                    let tabName = workspace?.composeTabs.first(where: { $0.id == tabID })?.name ?? "T1"
+                    let promptText = workspace?.composeTabs.first(where: { $0.id == tabID })?.promptText ?? ""
+                    let selection = workspace?.composeTabs.first(where: { $0.id == tabID })?.selection ?? StoredSelection()
+                    let selectedMetaPromptIDs = workspace?.composeTabs.first(where: { $0.id == tabID })?.selectedMetaPromptIDs ?? []
+
+                    return MCPServerViewModel.TabContextSnapshot(
+                        tabID: tabID,
+                        windowID: window.windowID,
+                        workspaceID: workspace?.id,
+                        promptText: promptText,
+                        selection: selection,
+                        selectedMetaPromptIDs: selectedMetaPromptIDs,
+                        tabName: tabName,
+                        runID: nil,
+                        activeAgentSessionID: nil,
+                        worktreeBindings: [],
+                        explicitlyBound: false,
+                        readFileAutoSelectionGeneration: 0
+                    )
+                },
                 requireAgentModeConnection: { _ in throw MCPError.invalidParams("Agent connection not supported on Linux") },
                 resolveAgentModeTabID: { _, _ in throw MCPError.invalidParams("Agent tab not supported on Linux") },
                 resolveContextBuilderTab: { _, _, _ in throw MCPError.invalidParams("Context builder tab not supported on Linux") },
@@ -170,7 +192,31 @@
                     )
                 },
                 resolveTabContextSnapshot: { _, _, _ in
-                    throw MCPError.invalidParams("Tabs not supported on Linux")
+                    let workspace = window.workspaceManager.activeWorkspace
+                    let tabID = workspace?.activeComposeTabID ?? workspace?.composeTabs.first?.id ?? UUID()
+                    let tabName = workspace?.composeTabs.first(where: { $0.id == tabID })?.name ?? "T1"
+                    let promptText = workspace?.composeTabs.first(where: { $0.id == tabID })?.promptText ?? ""
+                    let selection = workspace?.composeTabs.first(where: { $0.id == tabID })?.selection ?? StoredSelection()
+                    let selectedMetaPromptIDs = workspace?.composeTabs.first(where: { $0.id == tabID })?.selectedMetaPromptIDs ?? []
+
+                    let snapshot = MCPServerViewModel.TabContextSnapshot(
+                        tabID: tabID,
+                        windowID: window.windowID,
+                        workspaceID: workspace?.id,
+                        promptText: promptText,
+                        selection: selection,
+                        selectedMetaPromptIDs: selectedMetaPromptIDs,
+                        tabName: tabName,
+                        runID: nil,
+                        activeAgentSessionID: nil,
+                        worktreeBindings: [],
+                        explicitlyBound: false,
+                        readFileAutoSelectionGeneration: 0
+                    )
+                    return MCPServerViewModel.ResolvedTabContextSnapshot(
+                        snapshot: snapshot,
+                        usesActiveTabCompatibility: true
+                    )
                 },
                 updateCurrentTabContext: { _, _ in },
                 selectedRecordsForCurrentTabContext: { [] },
@@ -470,7 +516,33 @@
                 parseCopyPresetSelector: { _ in nil as MCPServerViewModel.CopyPresetSelector? },
                 resolveCopyPreset: { _ in nil as CopyPreset? },
                 buildTabWorkspaceContext: { _, _, _, _, _ in
-                    ToolResultDTOs.PromptContextDTO(
+                    let roots = await window.promptManager.workspaceFileContextStore.rootRefs(scope: .visibleWorkspace).map { "\($0.name) → \($0.fullPath)" }
+                    var gitBranch: String? = nil
+                    if let firstRoot = await window.promptManager.workspaceFileContextStore.rootRefs(scope: .visibleWorkspace).first {
+                        let wslPath = PathTranslator.toWSLPath(firstRoot.fullPath)
+                        let processConfig = CLIProcessConfiguration(
+                            command: "git",
+                            workingDirectory: wslPath.isEmpty ? nil : wslPath,
+                            captureStdoutTailBytes: 1024,
+                            captureStderrTailBytes: 1024
+                        )
+                        let runner = CLIProcessRunner(config: processConfig)
+                        do {
+                            let result = try await runner.run(
+                                args: ["rev-parse", "--abbrev-ref", "HEAD"],
+                                stdin: nil,
+                                outputMode: .none,
+                                timeout: 5
+                            )
+                            if result.status == 0, let branch = String(data: result.stdout, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines), !branch.isEmpty {
+                                gitBranch = branch
+                            }
+                        } catch {
+                            // ignore
+                        }
+                    }
+
+                    return ToolResultDTOs.PromptContextDTO(
                         prompt: "",
                         selection: nil,
                         fileBlocks: nil,
@@ -481,7 +553,9 @@
                         tokenStatsNote: nil,
                         copyPreset: nil,
                         copyPresets: nil,
-                        worktreeScope: nil
+                        worktreeScope: nil,
+                        gitBranch: gitBranch,
+                        roots: roots
                     )
                 },
                 selectedFilesWithStats: { _ in

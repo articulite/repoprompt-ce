@@ -26,10 +26,17 @@ interface SettingsPanelProps {
   isConnected: boolean;
   roots: string[];
   onRefreshRoots: () => void;
+  initialSection?: string;
 }
 
-export default function SettingsPanel({ isConnected, roots, onRefreshRoots }: SettingsPanelProps) {
-  const [activeSection, setActiveSection] = useState<string>("agent_mode");
+export default function SettingsPanel({ isConnected, roots, onRefreshRoots, initialSection }: SettingsPanelProps) {
+  const [activeSection, setActiveSection] = useState<string>(initialSection || "agent_mode");
+
+  useEffect(() => {
+    if (initialSection) {
+      setActiveSection(initialSection);
+    }
+  }, [initialSection]);
   const [searchQuery, setSearchQuery] = useState("");
   const [settings, setSettings] = useState<SettingItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -775,7 +782,7 @@ export default function SettingsPanel({ isConnected, roots, onRefreshRoots }: Se
     );
   };
 
-  const getSettingValue = (keyPath: string, defaultValue: string = "Default") => {
+  const getSettingValue = (keyPath: string, defaultValue: any = "Default") => {
     const item = settings.find(s => s.key === keyPath);
     return item?.currentValue || defaultValue;
   };

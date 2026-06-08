@@ -33,13 +33,25 @@ function App() {
   }, []);
 
   const checkActiveWorkspace = async () => {
+    if (sessionStorage.getItem("explicitExit") === "true") {
+      return;
+    }
     try {
       // Find out if a workspace is already loaded in the daemon
       const res = await mcpClient.callTool("workspace_context", {});
       if (res && !res.isError && res.content && res.content[0]?.text) {
         const text = res.content[0].text;
+
+        let hasRoots = false;
+        try {
+          const parsed = JSON.parse(text);
+          hasRoots = Array.isArray(parsed.roots) && parsed.roots.length > 0;
+        } catch (e) {
+          hasRoots = text.includes("Loaded roots:") && !text.includes("No workspace is currently loaded");
+        }
+
         // Parse loaded roots or workspace names
-        if (text.includes("Loaded roots:") && !text.includes("No workspace is currently loaded")) {
+        if (hasRoots) {
           // A workspace is loaded! Let's query list to match its name
           const listRes = await mcpClient.callTool("manage_workspaces", { action: "list" });
           if (listRes && !listRes.isError && listRes.content && listRes.content[0]?.text) {
@@ -65,10 +77,12 @@ function App() {
   };
 
   const handleWorkspaceSelected = (name: string) => {
+    sessionStorage.removeItem("explicitExit");
     setActiveWorkspace(name);
   };
 
   const handleExitWorkspace = () => {
+    sessionStorage.setItem("explicitExit", "true");
     setActiveWorkspace(null);
   };
 
