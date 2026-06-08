@@ -17,8 +17,130 @@
                 executeOracleSend: { _ in throw MCPError.invalidParams("Oracle not supported on Linux") },
                 executeOracleChatLog: { _ in throw MCPError.invalidParams("Oracle log not supported on Linux") },
                 executeAgentExplore: { _ in throw MCPError.invalidParams("Agent mode not supported on Linux") },
-                executeAgentRun: { _ in throw MCPError.invalidParams("Agent mode not supported on Linux") },
-                executeAgentManage: { _ in throw MCPError.invalidParams("Agent mode not supported on Linux") },
+                executeAgentRun: { args in
+                    let op = args["op"]?.stringValue ?? "wait"
+                    guard op == "start" else {
+                        let sessionID = UUID()
+                        return .object([
+                            "status": .string("completed"),
+                            "assistant_text": .string("Operation '\(op)' not active in headless mode"),
+                            "summary": .string("Operation '\(op)' not active in headless mode"),
+                            "session": .object([
+                                "id": .string(sessionID.uuidString),
+                                "name": .string("Headless Session")
+                            ])
+                        ])
+                    }
+
+                    let message = args["message"]?.stringValue ?? ""
+                    guard !message.isEmpty else {
+                        throw MCPError.invalidParams("message is required for agent_run op=start")
+                    }
+
+                    // Resolve working directory from active workspace
+                    let activeWorkspace = window.workspaceManager.activeWorkspace
+                    let repoPaths = activeWorkspace?.repoPaths ?? []
+                    let windowsWorkspacePath = repoPaths.first ?? ""
+                    let workingDirectory = PathTranslator.toWSLPath(windowsWorkspacePath)
+
+                    // Determine which CLI tool to use
+                    let env = ProcessInfo.processInfo.environment
+                    let opencodePath = CommandPathResolver.resolve("opencode", environment: env, additionalPaths: [])
+                    let claudePath = CommandPathResolver.resolve("claude", environment: env, additionalPaths: [])
+
+                    let isOpencodeAvailable = CommandPathResolver.launchability(of: opencodePath) == .launchable
+                    let isClaudeAvailable = CommandPathResolver.launchability(of: claudePath) == .launchable
+
+                    let exeName: String
+                    if isOpencodeAvailable {
+                        exeName = "opencode"
+                    } else if isClaudeAvailable {
+                        exeName = "claude"
+                    } else {
+                        throw MCPError.invalidParams("Neither 'opencode' nor 'claude' CLI agents could be found on your PATH. Please install one in WSL to use the chat interface.")
+                    }
+
+                    // Run the CLI
+                    let processConfig = CLIProcessConfiguration(
+                        command: exeName,
+                        workingDirectory: workingDirectory.isEmpty ? nil : workingDirectory,
+                        captureStdoutTailBytes: 10 * 1024 * 1024,
+                        captureStderrTailBytes: 10 * 1024 * 1024
+                    )
+
+                    let runner = CLIProcessRunner(config: processConfig)
+                    let result: CLIProcessRunner.Result = if exeName == "opencode" {
+                        try await runner.run(
+                            args: ["run", message, "--dangerously-skip-permissions"],
+                            stdin: nil,
+                            outputMode: .none,
+                            timeout: 300
+                        )
+                    } else {
+                        try await runner.run(
+                            args: ["-p", "--dangerously-skip-permissions"],
+                            stdin: message,
+                            outputMode: .none,
+                            timeout: 300
+                        )
+                    }
+
+                    // Capture output
+                    let stdoutString = String(data: result.stdout, encoding: .utf8) ?? ""
+                    let stderrString = String(data: result.stderr, encoding: .utf8) ?? ""
+
+                    let finalOutput: String = if result.status == 0 {
+                        stdoutString
+                    } else {
+                        "Agent exited with status \(result.status)\n\nstdout:\n\(stdoutString)\n\nstderr:\n\(stderrString)"
+                    }
+
+                    let sessionID = UUID()
+                    return .object([
+                        "status": .string("completed"),
+                        "assistant_text": .string(finalOutput),
+                        "summary": .string(finalOutput),
+                        "session": .object([
+                            "id": .string(sessionID.uuidString),
+                            "name": .string("Headless CLI Run")
+                        ])
+                    ])
+                },
+                executeAgentManage: { args in
+                    let op = args["op"]?.stringValue ?? "list_sessions"
+                    if op == "list_agents" {
+                        return .object([
+                            "task_labels": .array([
+                                .object([
+                                    "label": .string("explore"),
+                                    "name": .string("Explore"),
+                                    "description": .string("Explore the workspace")
+                                ]),
+                                .object([
+                                    "label": .string("engineer"),
+                                    "name": .string("Engineer"),
+                                    "description": .string("Autonomous engineering tasks")
+                                ]),
+                                .object([
+                                    "label": .string("pair"),
+                                    "name": .string("Pair"),
+                                    "description": .string("Pair programming")
+                                ]),
+                                .object([
+                                    "label": .string("design"),
+                                    "name": .string("Design"),
+                                    "description": .string("Design and planning")
+                                ])
+                            ])
+                        ])
+                    } else if op == "list_sessions" {
+                        return .object([
+                            "sessions": .array([])
+                        ])
+                    } else {
+                        return .object([:])
+                    }
+                },
                 requireTargetWindow: { window },
                 requireCurrentTabContext: { _ in throw MCPError.invalidParams("Tabs not supported on Linux") },
                 requireAgentModeConnection: { _ in throw MCPError.invalidParams("Agent connection not supported on Linux") },

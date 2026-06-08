@@ -3,7 +3,7 @@ import {
   Square, RefreshCw, Layers, Terminal as TermIcon, MessageSquare,
   ChevronRight, ChevronDown, CheckCircle, XCircle,
   HelpCircle, Send, ArrowRight, Loader2, List, FileText,
-  Search, GitBranch, Check, X, Copy, FileCode
+  Search, GitBranch, Check, X, Copy, FileCode, AlertCircle
 } from "lucide-react";
 import { mcpClient } from "../mcpClient";
 import { safeParseJSON } from "../utils";
@@ -61,6 +61,7 @@ export default function AgentModePanel({ isConnected }: AgentModePanelProps) {
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
   const [steeringText, setSteeringText] = useState("");
   const [submittingSteering, setSubmittingSteering] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const pollIntervalRef = useRef<any>(null);
 
   // Dynamic fetch cache states
@@ -178,6 +179,7 @@ export default function AgentModePanel({ isConnected }: AgentModePanelProps) {
     if (!promptText.trim() || !isConnected || loading) return;
 
     setLoading(true);
+    setError(null);
     try {
       const res = await mcpClient.callTool("agent_run", {
         op: "start",
@@ -194,11 +196,11 @@ export default function AgentModePanel({ isConnected }: AgentModePanelProps) {
           await loadSessions();
         }
       } else {
-        alert("Failed to start session: " + (res.content?.[0]?.text || "Unknown error"));
+        setError(res.content?.[0]?.text || "Failed to start session.");
       }
     } catch (err: any) {
       console.error(err);
-      alert(err.message || "Failed to start session");
+      setError(err.message || "Failed to start session");
     } finally {
       setLoading(false);
     }
@@ -965,6 +967,25 @@ export default function AgentModePanel({ isConnected }: AgentModePanelProps) {
               <h2>Start Detached Agent Session</h2>
               <p>Detach execution lets the agent run compiler loops in the background.</p>
             </div>
+
+            {error && (
+              <div className="chat-error-banner animate-fade-in" style={{ marginBottom: "1.5rem" }}>
+                <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                <span>
+                  {error.includes("Agent mode not supported on Linux") ? (
+                    <span>
+                      <strong>Agent Mode is not supported natively on Linux/WSL.</strong>
+                      <br />
+                      On WSL/Linux, the RepoPrompt daemon operates in headless mode to serve repository tools to external agents.
+                      <br />
+                      To explore or modify your codebase, run your configured CLI agent (e.g. <code>opencode</code> or <code>claude</code>) in your WSL terminal. It will connect to this daemon automatically.
+                    </span>
+                  ) : (
+                    error
+                  )}
+                </span>
+              </div>
+            )}
 
             <form onSubmit={handleStartDetached} className="agent-setup-form">
               <div className="form-group">

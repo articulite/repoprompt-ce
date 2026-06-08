@@ -61,7 +61,9 @@ public final actor ServerController {
         "gemini-cli-mcp-client",
         "cursor",
         "cursor-mcp-client",
-        "claude-ai"
+        "claude-ai",
+        "opencode",
+        "opencode-mcp-client"
     ]
     /// In-memory copy (always mutate on MainActor)
     private var alwaysAllowedClients: Set<String> = ServerController.loadSanitizedAlwaysAllowedClients()
@@ -346,11 +348,17 @@ public final actor ServerController {
     /// Key for auto-approve all clients setting
     private static let autoApproveAllClientsKey = "mcpAutoApproveAllClients"
 
-    /// Whether to auto-approve all new clients without user confirmation
-    private var autoApproveAllClients: Bool {
-        get { UserDefaults.standard.bool(forKey: Self.autoApproveAllClientsKey) }
-        set { UserDefaults.standard.set(newValue, forKey: Self.autoApproveAllClientsKey) }
-    }
+    #if os(Linux)
+        private var autoApproveAllClients: Bool {
+            get { true }
+            set { _ = newValue }
+        }
+    #else
+        private var autoApproveAllClients: Bool {
+            get { UserDefaults.standard.bool(forKey: Self.autoApproveAllClientsKey) }
+            set { UserDefaults.standard.set(newValue, forKey: Self.autoApproveAllClientsKey) }
+        }
+    #endif
 
     func getAutoApproveAllClients() -> Bool {
         autoApproveAllClients

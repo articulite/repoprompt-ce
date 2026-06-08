@@ -406,7 +406,19 @@ export default function ChatPanel({ isConnected }: ChatPanelProps) {
         {error && (
           <div className="chat-error-banner animate-fade-in">
             <AlertCircle size={16} />
-            <span>{error}</span>
+            <span>
+              {error.includes("Agent mode not supported on Linux") ? (
+                <span>
+                  <strong>Agent Mode is not supported natively on Linux/WSL.</strong>
+                  <br />
+                  On WSL/Linux, the RepoPrompt daemon operates in headless mode to serve repository tools to external agents.
+                  <br />
+                  To explore or modify your codebase, run your configured CLI agent (e.g. <code>opencode</code> or <code>claude</code>) in your WSL terminal. It will connect to this daemon automatically.
+                </span>
+              ) : (
+                error
+              )}
+            </span>
           </div>
         )}
         <div ref={messagesEndRef} />
